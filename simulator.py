@@ -38,19 +38,20 @@ default_REG = {
 
 
 class Simulator:
-    filename = ""
-    instruction_set = []
-    labels = {}
-    PC = 0
-    REG = default_REG.copy()
-    MEM = []
+    def __init__(self):
+        self.filename = ""
+        self.instruction_set = []
+        self.labels = {}
+        self.PC = 0
+        self.REG = default_REG.copy()
+        self.MEM = ["00"] * pow(2, 12)
 
     def reset(self):
         self.instruction_set = []
         self.labels = {}
         self.PC = 0
         self.REG = default_REG.copy()
-        self.MEM = []
+        self.MEM = ["00"] * pow(2, 12)
 
     def open_file(self):
         self.filename = askopenfile().name
@@ -65,6 +66,8 @@ class Simulator:
         self.parse()
         self.exe()
         print("Execution completed")
+        print("t0 : ", self.REG["$t0"], " t1 : ", self.REG["$t1"], " t2 : ", self.REG["$t2"])
+        print("MEM : ", self.MEM[53])
 
     def run(self):
         root = Tk()
@@ -79,7 +82,7 @@ class Simulator:
 
     def parse(self):
         # first empty the prev instructions
-        self.instruction_set = ["add $r1,$r2,$r2", "sub $r1,$r2,$r2", "fff $r1,$r2,$r2", "add $r1,$r2,$r2"]
+        self.instruction_set = ["li $t0,233", "li $t1,10", "st $t0,40($t1)", "ld $t2,40($t1)"]
         # then go through the file and append the instructions to the list
         # filename is stored in self.filename
 
@@ -92,10 +95,14 @@ class Simulator:
         reg1 = args[1].strip()
         reg2 = args[2].strip()
 
-        self.REG[target] = self.REG[reg1] + self.REG[reg2]
+        res = hex(int(self.REG[reg1], 16) + int(self.REG[reg2], 16))[2:]
+        if len(res) > 8:
+            res = "0x" + res[len(res)-8:]
+        else:
+            res = "0x" + "0"*(8-len(res)) + res
 
+        self.REG[target] = res
         self.PC += 1
-        return
 
     def sub(self, current_instruction):
         args = current_instruction.strip().split(",")
@@ -103,10 +110,14 @@ class Simulator:
         reg1 = args[1].strip()
         reg2 = args[2].strip()
 
-        self.REG[target] = self.REG[reg1] - self.REG[reg2]
+        res = hex(int(self.REG[reg1], 16) - int(self.REG[reg2], 16))[2:]
+        if len(res) > 8:
+            res = "0x" + res[len(res)-8:]
+        else:
+            res = "0x" + "0"*(8-len(res)) + res
 
+        self.REG[target] = res
         self.PC += 1
-        return
 
     def bne(self, current_instruction):
         args = current_instruction.strip().split(",")
@@ -124,15 +135,52 @@ class Simulator:
         self.PC = self.labels[target_label]
 
     def load(self, current_instruction):
-        return
+        args = current_instruction.strip().split(",")
+        to_reg = args[0].strip().split()[1]
+        tmp = args[1].strip().split("(")
+        offset = tmp[0].strip()
+        if offset[:2] == "0x":
+            offset = int(offset, 16)
+        else:
+            offset = int(offset)
+        base_reg = tmp[1][:len(tmp[1])-1].strip()
+        target_address = offset + int(self.REG[base_reg], 16)
+        self.REG[to_reg] = "0x"+self.MEM[target_address]+self.MEM[target_address+1]+self.MEM[target_address+2]+self.MEM[target_address+3]
+        self.PC += 1
 
     def store(self, current_instruction):
-        return
+        args = current_instruction.strip().split(",")
+        from_reg = args[0].strip().split()[1]
+        tmp = args[1].strip().split("(")
+        offset = tmp[0].strip()
+        if offset[:2] == "0x":
+            offset = int(offset, 16)
+        else:
+            offset = int(offset)
+        base_reg = tmp[1][:len(tmp[1])-1].strip()
+        to_address = offset + int(self.REG[base_reg], 16)
+        val = self.REG[from_reg]
+        self.MEM[to_address] = val[2:4]
+        self.MEM[to_address+1] = val[4:6]
+        self.MEM[to_address+2] = val[6:8]
+        self.MEM[to_address+3] = val[8:10]
+        self.PC += 1
 
     def load_immediate(self, current_instruction):
         args = current_instruction.strip().split(",")
         reg = args[0].strip().split()[1]
-        immediate = int(args[1].strip())
+        immediate = args[1].strip()
+
+        if immediate[:2] != "0x":
+            immediate = hex(int(immediate))
+
+        immediate = immediate[2:]
+
+        if len(immediate) > 8:
+            immediate = "0x" + immediate[len(immediate)-8:]
+        else:
+            immediate = "0x" + "0"*(8-len(immediate)) + immediate
+
         self.REG[reg] = immediate
         self.PC += 1
 
@@ -164,3 +212,4 @@ class Simulator:
 
 sim = Simulator()
 sim.run()
+
