@@ -123,6 +123,19 @@ class Simulator:
         target_label = args[0].strip().split()[1]
         self.PC = self.labels[target_label]
 
+    def load(self, current_instruction):
+        return
+
+    def store(self, current_instruction):
+        return
+
+    def load_immediate(self, current_instruction):
+        args = current_instruction.strip().split(",")
+        reg = args[0].strip().split()[1]
+        immediate = int(args[1].strip())
+        self.REG[reg] = immediate
+        self.PC += 1
+
     def exe(self):
 
         while self.PC < len(self.instruction_set):
@@ -136,8 +149,14 @@ class Simulator:
                 self.bne(current_instruction)
             elif command == "j":
                 self.jump(current_instruction)
+            elif command == "ld":
+                self.load(current_instruction)
+            elif command == "st":
+                self.store(current_instruction)
+            elif command == "li":
+                self.load_immediate(current_instruction)
             else:
-                print("Error!!!")
+                print("Parsing Error!! Invalid Symbol.")
                 return
 
         return
