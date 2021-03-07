@@ -67,7 +67,7 @@ class Simulator:
         self.exe()
         print("Execution completed")
         print("t0 : ", self.REG["$t0"], " t1 : ", self.REG["$t1"], " t2 : ", self.REG["$t2"])
-        print("MEM : ", self.MEM[53])
+        print("MEM : ", self.MEM[51])
 
     def run(self):
         root = Tk()
@@ -82,7 +82,7 @@ class Simulator:
 
     def parse(self):
         # first empty the prev instructions
-        self.instruction_set = ["li $t0,233", "li $t1,10", "st $t0,40($t1)", "ld $t2,40($t1)"]
+        self.instruction_set = ["li $t0,233", "li $t1,0x10", "st $t0,0x20($t1)", "ld $t2,0x20($t1)", "add $t0,$t0,$t2"]
         # then go through the file and append the instructions to the list
         # filename is stored in self.filename
 
@@ -185,7 +185,6 @@ class Simulator:
         self.PC += 1
 
     def exe(self):
-
         while self.PC < len(self.instruction_set):
             current_instruction = self.instruction_set[self.PC]
             command = self.get_command(current_instruction)
@@ -206,7 +205,6 @@ class Simulator:
             else:
                 print("Parsing Error!! Invalid Symbol.")
                 return
-
         return
 
 
