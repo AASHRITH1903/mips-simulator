@@ -43,21 +43,24 @@ class Simulator:
         self.instruction_set = []
         self.labels = {}
         self.PC = 0
-        self.data = 0
+        self.main = -1
         self.REG = default_REG.copy()
-        self.MEM = ["00"] * pow(2, 12)
+        self.MEM = ["."] * pow(2, 12)
+        self.variable_address = {}
 
     def reset(self):
         self.instruction_set = []
         self.labels = {}
         self.PC = 0
+        self.main = -1
         self.REG = default_REG.copy()
-        self.MEM = ["00"] * pow(2, 12)
+        self.MEM = ["."] * pow(2, 12)
+        self.variable_address = {}
 
     def open_file(self):
         self.filename = askopenfile().name
 
-    def start(self):
+    def start(self, text_box):
         # implement logic to see if it is a valid assembly file else return
         if self.filename == "":
             print("Invalid file.\n")
@@ -65,54 +68,138 @@ class Simulator:
 
         self.reset()
         self.parse()
-        self.exe()
-        print("Execution completed")
-        print(self.REG)
-        return
 
-        # print("t0 : ", self.REG["$t0"], " t1 : ", self.REG["$t1"], " t2 : ", self.REG["$t2"])
+        print(self.instruction_set)
+        print(self.labels)
+        print(self.variable_address)
+
+        code = self.exe()
+        if code == 0:
+            text_box.insert(END, "Executed successfully.\n\nREGISTERS : \n\n")
+            for key in self.REG:
+                text_box.insert(END, key + " : " + self.REG[key] + "\n")
+            text_box.insert(END, "\nMEMORY : \n\n")
+            for byte in self.MEM:
+                text_box.insert(END, byte + " ")
+
+        elif code == -1:
+            text_box.insert(END, "Main function not found . Aborted !!")
+        elif code == -2:
+            text_box.insert(END, "Parsing error : Invalid symbol !!")
+
+        return
 
     def run(self):
         root = Tk()
         open_button = Button(root, text="open", command=self.open_file)
-        open_button.pack()
+        start_button = Button(root, text="start", command=lambda: self.start(text_box))
+        text_box = Text(root, height=500, width=200)
 
-        start_button = Button(root, text="start", command=self.start)
+        open_button.pack()
         start_button.pack()
+        text_box.pack()
 
         root.mainloop()
         return
 
-    def parse(self):
-        # self.instruction_set = ["li $t0,233", "li $t1,10", "st $t0,40($t1)", "ld $t2,40($t1)"]
-        file1 = open(self.filename, 'r')
-        for line in file1:
-            if line.strip():
-                line = line.strip()
-            line = line.split("#")[0]
-            if line.strip():
-                line = line.strip()
-                self.instruction_set.append(line)
-        print(self.instruction_set)
-        for i, line in enumerate(self.instruction_set):
-            if line.find("main:") != -1:
-                self.PC = i+1
-                break
-            else:
-                print("ERROR")
-        for i, line in enumerate(self.instruction_set):
-            if line.find(".data") != -1:
-                self.data = i+1
-                break
+    def parse_data_segment(self, lines):
+        mi = 0
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
 
-        for i, line in enumerate(self.instruction_set):
+            tmp = line.split(":", 1)
+            variable_name = tmp[0].strip()
+            self.variable_address[variable_name] = mi
+            variable_type = tmp[1].strip().split(" ", 1)[0]
+            value = 0
+            if variable_type == ".asciiz":
+                value = tmp[1].split("\"")[1]
+                for c in value:
+                    self.MEM[mi] = c
+                    mi += 1
+
+            elif variable_type == ".word":
+                value = tmp[1].split()[1]
+                if value[:2] != "0x":
+                    value = hex(int(value))
+
+                value = value[2:]
+
+                if len(value) > 8:
+                    value = "0x" + value[len(value) - 8:]
+                else:
+                    value = "0x" + "0" * (8 - len(value)) + value
+
+                self.MEM[mi] = value[2:4]
+                self.MEM[mi + 1] = value[4:6]
+                self.MEM[mi + 2] = value[6:8]
+                self.MEM[mi + 3] = value[8:10]
+                mi += 4
+
+            elif variable_type == ".space":
+                value = int(tmp[1].split()[1])
+                for _ in range(value):
+                    self.MEM[mi] = "_"
+                    mi += 1
+
+        return
+
+    def parse_text_segment(self, lines):
+        i = -1
+        for line in lines:
+            line = line.strip()
+            if not line or line[0] == '#':
+                continue
+            line = line.split("#")[0].strip()
+
             if line.find(":") != -1:
-                label = line.split(":")[0]
-                self.labels[label] = i
-        print(self.labels)
+                # label : instruction
+                # or
+                # label :
+                tmp = line.split(":")
+                label = tmp[0].strip()
+                instruction = tmp[1].strip()
 
-        # then go through the file and append the instructions to the list
-        # filename is stored in self.filename
+                self.instruction_set.append(label)
+                i += 1
+                self.labels[label] = i
+                if label == "main":
+                    self.main = i
+                if instruction:
+                    self.instruction_set.append(instruction)
+                    i += 1
+            else:
+                # instruction
+                self.instruction_set.append(line)
+                i += 1
+
+        return
+
+    def parse(self):
+        file = open(self.filename, 'r')
+        lines = file.readlines()
+        data_segment_start = -1
+        text_segment_start = -1
+        for idx, line in enumerate(lines):
+            if line.strip() == ".text":
+                text_segment_start = idx
+            elif line.strip() == ".data":
+                data_segment_start = idx
+
+        if data_segment_start == -1:
+            # data segment doesn't exist
+            self.parse_text_segment(lines[text_segment_start + 1:])
+        else:
+            if data_segment_start < text_segment_start:
+                self.parse_data_segment(lines[data_segment_start + 1:text_segment_start])
+                self.parse_text_segment(lines[text_segment_start + 1:])
+            else:
+                self.parse_data_segment(lines[data_segment_start + 1:])
+                self.parse_text_segment(lines[text_segment_start + 1:data_segment_start])
+
+        return
 
     def get_command(self, current):
         return current.split(" ", 1)[0]
@@ -153,14 +240,14 @@ class Simulator:
         reg2 = args[1].strip()
         target_label = args[2].strip()
         if self.REG[reg1] != self.REG[reg2]:
-            self.PC = self.labels[target_label]
+            self.PC = self.labels[target_label] + 1
         else:
             self.PC += 1
 
     def jump(self, current_instruction):
         args = current_instruction.strip().split(",")
         target_label = args[0].strip().split()[1]
-        self.PC = self.labels[target_label]
+        self.PC = self.labels[target_label] + 1
 
     def load(self, current_instruction):
         args = current_instruction.strip().split(",")
@@ -213,10 +300,24 @@ class Simulator:
         self.REG[reg] = immediate
         self.PC += 1
 
-    def exe(self):
+    def is_label(self, s):
+        res = self.labels.get(s, "not found")
+        if res == "not found":
+            return False
+        else:
+            return True
 
+    def exe(self):
+        if self.main == -1:
+            return -1
+        self.PC = self.main + 1
         while self.PC < len(self.instruction_set):
             current_instruction = self.instruction_set[self.PC]
+
+            if self.is_label(current_instruction):
+                self.PC += 1
+                continue
+
             command = self.get_command(current_instruction)
             if command == "add":
                 self.add(current_instruction)
@@ -233,10 +334,9 @@ class Simulator:
             elif command == "li":
                 self.load_immediate(current_instruction)
             else:
-                print("Parsing Error!! Invalid Symbol.")
-                return
+                return -2
 
-        return
+        return 0
 
 
 sim = Simulator()
