@@ -219,133 +219,168 @@ class Simulator:
         return current.split(" ", 1)[0]
 
     def add(self, current_instruction):
-        args = current_instruction.strip().split(",")
-        target = args[0].strip().split()[1]
-        reg1 = args[1].strip()
-        reg2 = args[2].strip()
+        try:
+            args = current_instruction.strip().split(",")
+            target = args[0].strip().split()[1]
+            reg1 = args[1].strip()
+            reg2 = args[2].strip()
 
-        # check if all are valid registers
-        if not (target in self.REG and reg1 in self.REG and reg2 in self.REG):
+            # check if all are valid registers
+            if not (target in self.REG and reg1 in self.REG and reg2 in self.REG):
+                 return -1
+
+            res = hex(int(self.REG[reg1], 16) + int(self.REG[reg2], 16))[2:]
+            if len(res) > 8:
+                res = "0x" + res[len(res) - 8:]
+            else:
+                res = "0x" + "0" * (8 - len(res)) + res
+
+            self.REG[target] = res
+            self.PC += 1
+            return 0
+
+        except:
             return -1
-
-        res = hex(int(self.REG[reg1], 16) + int(self.REG[reg2], 16))[2:]
-        if len(res) > 8:
-            res = "0x" + res[len(res) - 8:]
-        else:
-            res = "0x" + "0" * (8 - len(res)) + res
-
-        self.REG[target] = res
-        self.PC += 1
-        return 0
 
     def sub(self, current_instruction):
-        args = current_instruction.strip().split(",")
-        target = args[0].strip().split()[1]
-        reg1 = args[1].strip()
-        reg2 = args[2].strip()
+        try:
+            args = current_instruction.strip().split(",")
+            target = args[0].strip().split()[1]
+            reg1 = args[1].strip()
+            reg2 = args[2].strip()
 
-        # check if all are valid registers
-        if not (target in self.REG and reg1 in self.REG and reg2 in self.REG):
+            # check if all are valid registers
+            if not (target in self.REG and reg1 in self.REG and reg2 in self.REG):
+                return -1
+
+            res = hex(int(self.REG[reg1], 16) - int(self.REG[reg2], 16))[2:]
+            if len(res) > 8:
+                res = "0x" + res[len(res) - 8:]
+            else:
+                res = "0x" + "0" * (8 - len(res)) + res
+
+            self.REG[target] = res
+            self.PC += 1
+            return 0
+
+        except:
             return -1
-
-        res = hex(int(self.REG[reg1], 16) - int(self.REG[reg2], 16))[2:]
-        if len(res) > 8:
-            res = "0x" + res[len(res) - 8:]
-        else:
-            res = "0x" + "0" * (8 - len(res)) + res
-
-        self.REG[target] = res
-        self.PC += 1
 
     def bne(self, current_instruction):
-        args = current_instruction.strip().split(",")
-        reg1 = args[0].strip().split()[1]
-        reg2 = args[1].strip()
-        target_label = args[2].strip()
+        try:
+            args = current_instruction.strip().split(",")
+            reg1 = args[0].strip().split()[1]
+            reg2 = args[1].strip()
+            target_label = args[2].strip()
 
-        # check if all are valid registers and labels
-        if not (target_label in self.labels and reg1 in self.REG and reg2 in self.REG):
+            # check if all are valid registers and labels
+            if not (target_label in self.labels and reg1 in self.REG and reg2 in self.REG):
+                return -1
+
+            if self.REG[reg1] != self.REG[reg2]:
+                self.PC = self.labels[target_label] + 1
+            else:
+                self.PC += 1
+
+            return 0
+
+        except:
             return -1
-
-        if self.REG[reg1] != self.REG[reg2]:
-            self.PC = self.labels[target_label] + 1
-        else:
-            self.PC += 1
 
     def jump(self, current_instruction):
-        args = current_instruction.strip().split(",")
-        target_label = args[0].strip().split()[1]
+        try:
+            args = current_instruction.strip().split(",")
+            target_label = args[0].strip().split()[1]
 
-        # check if all are valid labels
-        if not (target_label in self.labels):
+            # check if all are valid labels
+            if not (target_label in self.labels):
+                return -1
+
+            self.PC = self.labels[target_label] + 1
+            return 0
+
+        except:
             return -1
-
-        self.PC = self.labels[target_label] + 1
 
     def load(self, current_instruction):
-        args = current_instruction.strip().split(",")
-        to_reg = args[0].strip().split()[1]
-        tmp = args[1].strip().split("(")
-        offset = tmp[0].strip()
-        if offset[:2] == "0x":
-            offset = int(offset, 16)
-        else:
-            offset = int(offset)
-        base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+        try:
+            args = current_instruction.strip().split(",")
+            to_reg = args[0].strip().split()[1]
+            tmp = args[1].strip().split("(")
+            offset = tmp[0].strip()
+            if offset[:2] == "0x":
+                offset = int(offset, 16)
+            else:
+                offset = int(offset)
+            base_reg = tmp[1][:len(tmp[1]) - 1].strip()
 
-        # check if all are valid registers and labels
-        if not (to_reg in self.REG and base_reg in self.REG):
+            # check if all are valid registers and labels
+            if not (to_reg in self.REG and base_reg in self.REG):
+                return -1
+
+            target_address = offset + int(self.REG[base_reg], 16)
+            self.REG[to_reg] = "0x" + self.MEM[target_address] + self.MEM[target_address + 1] + self.MEM[
+                target_address + 2] + self.MEM[target_address + 3]
+            self.PC += 1
+            return 0
+
+        except:
             return -1
-
-        target_address = offset + int(self.REG[base_reg], 16)
-        self.REG[to_reg] = "0x" + self.MEM[target_address] + self.MEM[target_address + 1] + self.MEM[
-            target_address + 2] + self.MEM[target_address + 3]
-        self.PC += 1
 
     def store(self, current_instruction):
-        args = current_instruction.strip().split(",")
-        from_reg = args[0].strip().split()[1]
-        tmp = args[1].strip().split("(")
-        offset = tmp[0].strip()
-        if offset[:2] == "0x":
-            offset = int(offset, 16)
-        else:
-            offset = int(offset)
-        base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+        try:
+            args = current_instruction.strip().split(",")
+            from_reg = args[0].strip().split()[1]
+            tmp = args[1].strip().split("(")
+            offset = tmp[0].strip()
+            if offset[:2] == "0x":
+                offset = int(offset, 16)
+            else:
+                offset = int(offset)
+            base_reg = tmp[1][:len(tmp[1]) - 1].strip()
 
-        # check if all are valid registers and labels
-        if not (from_reg in self.REG and base_reg in self.REG):
+            # check if all are valid registers and labels
+            if not (from_reg in self.REG and base_reg in self.REG):
+                return -1
+
+            to_address = offset + int(self.REG[base_reg], 16)
+            val = self.REG[from_reg]
+            self.MEM[to_address] = val[2:4]
+            self.MEM[to_address + 1] = val[4:6]
+            self.MEM[to_address + 2] = val[6:8]
+            self.MEM[to_address + 3] = val[8:10]
+            self.PC += 1
+            return 0
+
+        except:
             return -1
-
-        to_address = offset + int(self.REG[base_reg], 16)
-        val = self.REG[from_reg]
-        self.MEM[to_address] = val[2:4]
-        self.MEM[to_address + 1] = val[4:6]
-        self.MEM[to_address + 2] = val[6:8]
-        self.MEM[to_address + 3] = val[8:10]
-        self.PC += 1
 
     def load_immediate(self, current_instruction):
-        args = current_instruction.strip().split(",")
-        reg = args[0].strip().split()[1]
+        try:
+            args = current_instruction.strip().split(",")
+            reg = args[0].strip().split()[1]
 
-        if not (reg in self.REG):
+            if not (reg in self.REG):
+                return -1
+
+            immediate = args[1].strip()
+
+            if immediate[:2] != "0x":
+                immediate = hex(int(immediate))
+
+            immediate = immediate[2:]
+
+            if len(immediate) > 8:
+                immediate = "0x" + immediate[len(immediate) - 8:]
+            else:
+                immediate = "0x" + "0" * (8 - len(immediate)) + immediate
+
+            self.REG[reg] = immediate
+            self.PC += 1
+            return 0
+
+        except:
             return -1
-
-        immediate = args[1].strip()
-
-        if immediate[:2] != "0x":
-            immediate = hex(int(immediate))
-
-        immediate = immediate[2:]
-
-        if len(immediate) > 8:
-            immediate = "0x" + immediate[len(immediate) - 8:]
-        else:
-            immediate = "0x" + "0" * (8 - len(immediate)) + immediate
-
-        self.REG[reg] = immediate
-        self.PC += 1
 
     def is_label(self, s):
         res = self.labels.get(s, "not found")
