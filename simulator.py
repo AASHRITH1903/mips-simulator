@@ -60,7 +60,7 @@ class Simulator:
     def open_file(self):
         self.filename = askopenfile().name
 
-    def start(self, text_box):
+    def start(self, text_box, next_button):
         # implement logic to see if it is a valid assembly file else return
         if self.filename == "":
             print("Invalid file.\n")
@@ -69,34 +69,48 @@ class Simulator:
         self.reset()
         self.parse()
 
+        text_box.delete("1.0", "end")
+        if self.main == -1:
+            text_box.insert(END, "Main function not found . \nExecution aborted .")
+            next_button["state"] = "disabled"
+            return
+
+        next_button["state"] = "active"
+        self.display_reg_mem(text_box)
+        self.PC = self.main + 1
+
         print(self.instruction_set)
         print(self.labels)
         print(self.variable_address)
 
-        code = self.exe()
-        if code == 0:
-            text_box.insert(END, "Executed successfully.\n\nREGISTERS : \n\n")
-            for key in self.REG:
-                text_box.insert(END, key + " : " + self.REG[key] + "\n")
-            text_box.insert(END, "\nMEMORY : \n\n")
-            for byte in self.MEM:
-                text_box.insert(END, byte + " ")
-
-        elif code == -1:
-            text_box.insert(END, "Main function not found . Aborted !!")
-        elif code == -2:
-            text_box.insert(END, "Parsing error : Invalid symbol !!")
-
         return
+
+    def exe(self, text_box):
+        text_box.delete("1.0", "end")
+        message = self.exe_helper()
+        if message == "success":
+            self.display_reg_mem(text_box)
+        else:
+            text_box.insert(END, message)
+
+    def display_reg_mem(self, text_box):
+        text_box.insert(END, "\nREGISTERS : \n\n")
+        for key in self.REG:
+            text_box.insert(END, key + " : " + self.REG[key] + "\n")
+        text_box.insert(END, "\nMEMORY : \n\n")
+        for byte in self.MEM:
+            text_box.insert(END, byte + " ")
 
     def run(self):
         root = Tk()
-        open_button = Button(root, text="open", command=self.open_file)
-        start_button = Button(root, text="start", command=lambda: self.start(text_box))
+        open_button = Button(root, text="open", command=self.open_file, bg="red")
+        start_button = Button(root, text="start", command=lambda: self.start(text_box, next_button), bg="green")
+        next_button = Button(root, text="next", command=lambda: self.exe(text_box), bg="blue")
         text_box = Text(root, height=500, width=200)
 
         open_button.pack()
         start_button.pack()
+        next_button.pack()
         text_box.pack()
 
         root.mainloop()
@@ -141,7 +155,7 @@ class Simulator:
             elif variable_type == ".space":
                 value = int(tmp[1].split()[1])
                 for _ in range(value):
-                    self.MEM[mi] = "_"
+                    self.MEM[mi] = " "
                     mi += 1
 
         return
@@ -210,6 +224,10 @@ class Simulator:
         reg1 = args[1].strip()
         reg2 = args[2].strip()
 
+        # check if all are valid registers
+        if not (target in self.REG and reg1 in self.REG and reg2 in self.REG):
+            return -1
+
         res = hex(int(self.REG[reg1], 16) + int(self.REG[reg2], 16))[2:]
         if len(res) > 8:
             res = "0x" + res[len(res) - 8:]
@@ -218,12 +236,17 @@ class Simulator:
 
         self.REG[target] = res
         self.PC += 1
+        return 0
 
     def sub(self, current_instruction):
         args = current_instruction.strip().split(",")
         target = args[0].strip().split()[1]
         reg1 = args[1].strip()
         reg2 = args[2].strip()
+
+        # check if all are valid registers
+        if not (target in self.REG and reg1 in self.REG and reg2 in self.REG):
+            return -1
 
         res = hex(int(self.REG[reg1], 16) - int(self.REG[reg2], 16))[2:]
         if len(res) > 8:
@@ -239,6 +262,11 @@ class Simulator:
         reg1 = args[0].strip().split()[1]
         reg2 = args[1].strip()
         target_label = args[2].strip()
+
+        # check if all are valid registers and labels
+        if not (target_label in self.labels and reg1 in self.REG and reg2 in self.REG):
+            return -1
+
         if self.REG[reg1] != self.REG[reg2]:
             self.PC = self.labels[target_label] + 1
         else:
@@ -247,6 +275,11 @@ class Simulator:
     def jump(self, current_instruction):
         args = current_instruction.strip().split(",")
         target_label = args[0].strip().split()[1]
+
+        # check if all are valid labels
+        if not (target_label in self.labels):
+            return -1
+
         self.PC = self.labels[target_label] + 1
 
     def load(self, current_instruction):
@@ -259,6 +292,11 @@ class Simulator:
         else:
             offset = int(offset)
         base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+
+        # check if all are valid registers and labels
+        if not (to_reg in self.REG and base_reg in self.REG):
+            return -1
+
         target_address = offset + int(self.REG[base_reg], 16)
         self.REG[to_reg] = "0x" + self.MEM[target_address] + self.MEM[target_address + 1] + self.MEM[
             target_address + 2] + self.MEM[target_address + 3]
@@ -274,6 +312,11 @@ class Simulator:
         else:
             offset = int(offset)
         base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+
+        # check if all are valid registers and labels
+        if not (from_reg in self.REG and base_reg in self.REG):
+            return -1
+
         to_address = offset + int(self.REG[base_reg], 16)
         val = self.REG[from_reg]
         self.MEM[to_address] = val[2:4]
@@ -285,6 +328,10 @@ class Simulator:
     def load_immediate(self, current_instruction):
         args = current_instruction.strip().split(",")
         reg = args[0].strip().split()[1]
+
+        if not (reg in self.REG):
+            return -1
+
         immediate = args[1].strip()
 
         if immediate[:2] != "0x":
@@ -307,36 +354,37 @@ class Simulator:
         else:
             return True
 
-    def exe(self):
-        if self.main == -1:
-            return -1
-        self.PC = self.main + 1
-        while self.PC < len(self.instruction_set):
-            current_instruction = self.instruction_set[self.PC]
+    def exe_helper(self):
+        print("pc : ", self.PC)
+        if self.PC < len(self.instruction_set):
 
+            current_instruction = self.instruction_set[self.PC]
             if self.is_label(current_instruction):
                 self.PC += 1
-                continue
-
-            command = self.get_command(current_instruction)
-            if command == "add":
-                self.add(current_instruction)
-            elif command == "sub":
-                self.sub(current_instruction)
-            elif command == "bne":
-                self.bne(current_instruction)
-            elif command == "j":
-                self.jump(current_instruction)
-            elif command == "ld":
-                self.load(current_instruction)
-            elif command == "st":
-                self.store(current_instruction)
-            elif command == "li":
-                self.load_immediate(current_instruction)
             else:
-                return -2
+                command = self.get_command(current_instruction)
+                ret_code = 0
+                if command == "add":
+                    ret_code = self.add(current_instruction)
+                elif command == "sub":
+                    ret_code = self.sub(current_instruction)
+                elif command == "bne":
+                    ret_code = self.bne(current_instruction)
+                elif command == "j":
+                    ret_code = self.jump(current_instruction)
+                elif command == "ld":
+                    ret_code = self.load(current_instruction)
+                elif command == "st":
+                    ret_code = self.store(current_instruction)
+                elif command == "li":
+                    ret_code = self.load_immediate(current_instruction)
+                else:
+                    return "Parsing Error at : " + current_instruction + "\nExecution aborted !!."
 
-        return 0
+                if ret_code == -1:
+                    return "Parsing Error at : " + current_instruction + "\nExecution aborted !!."
+
+        return "success"
 
 
 sim = Simulator()
