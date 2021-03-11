@@ -44,8 +44,11 @@ class Simulator:
         self.labels = {}
         self.PC = 0
         self.main = -1
+        # register_name -> hex string
         self.REG = default_REG.copy()
+        # char , 2 hex digits , _ , . ,
         self.MEM = ["."] * pow(2, 12)
+        # variable_names -> int
         self.variable_address = {}
 
     def reset(self):
@@ -62,8 +65,10 @@ class Simulator:
 
     def start(self, text_box, next_button):
         # implement logic to see if it is a valid assembly file else return
-        if self.filename == "":
-            print("Invalid file.\n")
+        if not self.filename.endswith((".asm", ".s")):
+            text_box.delete("1.0", "end")
+            text_box.insert(END, "Invalid file.\n")
+            next_button["state"] = "disabled"
             return
 
         self.reset()
@@ -87,7 +92,7 @@ class Simulator:
 
     def exe(self, text_box):
         text_box.delete("1.0", "end")
-        message = self.exe_helper()
+        message = self.single_instruction_exe()
         if message == "success":
             self.display_reg_mem(text_box)
         else:
@@ -103,9 +108,9 @@ class Simulator:
 
     def run(self):
         root = Tk()
-        open_button = Button(root, text="open", command=self.open_file, bg="red")
-        start_button = Button(root, text="start", command=lambda: self.start(text_box, next_button), bg="green")
-        next_button = Button(root, text="next", command=lambda: self.exe(text_box), bg="blue")
+        open_button = Button(root, text="open", command=self.open_file, bg="black", fg="white")
+        start_button = Button(root, text="start", command=lambda: self.start(text_box, next_button), bg="grey", fg="white")
+        next_button = Button(root, text="next", command=lambda: self.exe(text_box))
         text_box = Text(root, height=500, width=200)
 
         open_button.pack()
@@ -127,7 +132,6 @@ class Simulator:
             variable_name = tmp[0].strip()
             self.variable_address[variable_name] = mi
             variable_type = tmp[1].strip().split(" ", 1)[0]
-            value = 0
             if variable_type == ".asciiz":
                 value = tmp[1].split("\"")[1]
                 for c in value:
@@ -135,27 +139,29 @@ class Simulator:
                     mi += 1
 
             elif variable_type == ".word":
-                value = tmp[1].split()[1]
-                if value[:2] != "0x":
-                    value = hex(int(value))
+                values = tmp[1].strip().split(" ", 1)[1].strip().split(',')
+                for value in values:
+                    value = value.strip()
+                    if value[:2] != "0x":
+                        value = hex(int(value))
 
-                value = value[2:]
+                    value = value[2:]
 
-                if len(value) > 8:
-                    value = "0x" + value[len(value) - 8:]
-                else:
-                    value = "0x" + "0" * (8 - len(value)) + value
+                    if len(value) > 8:
+                        value = "0x" + value[len(value) - 8:]
+                    else:
+                        value = "0x" + "0" * (8 - len(value)) + value
 
-                self.MEM[mi] = value[2:4]
-                self.MEM[mi + 1] = value[4:6]
-                self.MEM[mi + 2] = value[6:8]
-                self.MEM[mi + 3] = value[8:10]
-                mi += 4
+                    self.MEM[mi] = value[2:4]
+                    self.MEM[mi + 1] = value[4:6]
+                    self.MEM[mi + 2] = value[6:8]
+                    self.MEM[mi + 3] = value[8:10]
+                    mi += 4
 
             elif variable_type == ".space":
                 value = int(tmp[1].split()[1])
                 for _ in range(value):
-                    self.MEM[mi] = " "
+                    self.MEM[mi] = "_"
                     mi += 1
 
         return
@@ -382,6 +388,23 @@ class Simulator:
         except:
             return -1
 
+    def load_address(self, current_instruction):
+        try:
+            args = current_instruction.strip().split(",")
+            target_reg = args[0].strip().split()[1]
+            variable_name = args[1].strip()
+            index = hex(self.variable_address[variable_name])[2:]
+            if len(index) > 8:
+                index = "0x" + index[len(index) - 8:]
+            else:
+                index = "0x" + "0" * (8 - len(index)) + index
+
+            self.REG[target_reg] = index
+            return 0
+
+        except:
+            return -1
+
     def is_label(self, s):
         res = self.labels.get(s, "not found")
         if res == "not found":
@@ -389,7 +412,7 @@ class Simulator:
         else:
             return True
 
-    def exe_helper(self):
+    def single_instruction_exe(self):
         print("pc : ", self.PC)
         if self.PC < len(self.instruction_set):
 
@@ -413,6 +436,8 @@ class Simulator:
                     ret_code = self.store(current_instruction)
                 elif command == "li":
                     ret_code = self.load_immediate(current_instruction)
+                elif command == "la":
+                    ret_code = self.load_address(current_instruction)
                 else:
                     return "Parsing Error at : " + current_instruction + "\nExecution aborted !!."
 
