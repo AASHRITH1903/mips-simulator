@@ -1,5 +1,6 @@
 from tkinter import *
 from tkinter.filedialog import askopenfile
+from tkinter import scrolledtext
 
 default_REG = {
     "$zero": "0x00000000",
@@ -87,7 +88,7 @@ class Simulator:
     def open_file(self):
         self.filename = askopenfile().name
 
-    def start(self, text_box, next_button):
+    def load_program(self, text_box, next_button):
         # implement logic to see if it is a valid assembly file else return
         if not self.filename.endswith((".asm", ".s")):
             text_box.delete("1.0", "end")
@@ -147,16 +148,23 @@ class Simulator:
     def run(self):
         root = Tk()
         open_button = Button(root, text="open", command=self.open_file, bg="black", fg="white")
-        start_button = Button(root, text="load", command=lambda: self.start(text_box, next_button), bg="grey", fg="white")
+        load_button = Button(root, text="load", command=lambda: self.load_program(text_box, next_button), bg="grey", fg="white")
         next_button = Button(root, text="next", command=lambda: self.next(text_box, next_button))
-        auto_button = Button(root, text="auto", command=lambda : self.auto(text_box))
-        text_box = Text(root, height=500, width=200)
+        auto_button = Button(root, text="auto", command=lambda: self.auto(text_box))
+        # text_box = Text(root, height=500, width=200)
+        text_box = scrolledtext.ScrolledText(root, width=500, height=200, wrap=WORD)
 
         open_button.pack()
-        start_button.pack()
+        load_button.pack()
         next_button.pack()
         auto_button.pack()
         text_box.pack()
+
+        # open_button.grid(row=1, column=1)
+        # load_button.grid(row=2, column=1)
+        # next_button.grid(row=3, column=1)
+        # auto_button.grid(row=4, column=1)
+        # text_box.grid(row=5, column=2)
 
         root.mainloop()
         return
@@ -263,8 +271,6 @@ class Simulator:
 
     def get_command(self, current):
         return current.split(" ", 1)[0]
-
-
 
     def add(self, current_instruction):
         try:
