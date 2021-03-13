@@ -37,6 +37,30 @@ default_REG = {
 }
 
 
+def to_hex(num):
+    if type(num) == int:
+        num = hex(num)
+    elif type(num) == str and len(num) < 2:
+        num = hex(int(num))
+    elif type(num) == str and len(num) >= 2:
+        if num[:2] != "0x":
+            num = hex(int(num))
+
+    neg = False
+    if num[0] == '-':
+        neg = True
+        num = num[3:]
+    else:
+        num = num[2:]
+
+    if len(num) > 8:
+        num = "0x" + num[len(num) - 8:]
+    else:
+        num = "0x" + "0" * (8 - len(num)) + num
+
+    return '-' + num if neg else num
+
+
 class Simulator:
     def __init__(self):
         self.filename = ""
@@ -90,13 +114,27 @@ class Simulator:
 
         return
 
-    def exe(self, text_box):
+    def auto(self, text_box):
+        text_box.delete("1.0", "end")
+        while self.PC < len(self.instruction_set):
+            message = self.single_instruction_exe()
+            if message != "success":
+                text_box.delete("1.0", "end")
+                text_box.insert(END, message)
+                return
+        self.display_reg_mem(text_box)
+
+    def next(self, text_box, next_button):
         text_box.delete("1.0", "end")
         message = self.single_instruction_exe()
         if message == "success":
             self.display_reg_mem(text_box)
         else:
             text_box.insert(END, message)
+
+        if self.PC >= len(self.instruction_set):
+            next_button["state"] = "disabled"
+            return
 
     def display_reg_mem(self, text_box):
         text_box.insert(END, "\nREGISTERS : \n\n")
@@ -109,13 +147,15 @@ class Simulator:
     def run(self):
         root = Tk()
         open_button = Button(root, text="open", command=self.open_file, bg="black", fg="white")
-        start_button = Button(root, text="start", command=lambda: self.start(text_box, next_button), bg="grey", fg="white")
-        next_button = Button(root, text="next", command=lambda: self.exe(text_box))
+        start_button = Button(root, text="load", command=lambda: self.start(text_box, next_button), bg="grey", fg="white")
+        next_button = Button(root, text="next", command=lambda: self.next(text_box, next_button))
+        auto_button = Button(root, text="auto", command=lambda : self.auto(text_box))
         text_box = Text(root, height=500, width=200)
 
         open_button.pack()
         start_button.pack()
         next_button.pack()
+        auto_button.pack()
         text_box.pack()
 
         root.mainloop()
@@ -224,6 +264,8 @@ class Simulator:
     def get_command(self, current):
         return current.split(" ", 1)[0]
 
+
+
     def add(self, current_instruction):
         try:
             args = current_instruction.strip().split(",")
@@ -231,17 +273,7 @@ class Simulator:
             reg1 = args[1].strip()
             reg2 = args[2].strip()
 
-            # check if all are valid registers
-            if not (target in self.REG and reg1 in self.REG and reg2 in self.REG):
-                 return -1
-
-            res = hex(int(self.REG[reg1], 16) + int(self.REG[reg2], 16))[2:]
-            if len(res) > 8:
-                res = "0x" + res[len(res) - 8:]
-            else:
-                res = "0x" + "0" * (8 - len(res)) + res
-
-            self.REG[target] = res
+            self.REG[target] = to_hex(int(self.REG[reg1], 16) + int(self.REG[reg2], 16))
             self.PC += 1
             return 0
 
@@ -255,17 +287,7 @@ class Simulator:
             reg1 = args[1].strip()
             reg2 = args[2].strip()
 
-            # check if all are valid registers
-            if not (target in self.REG and reg1 in self.REG and reg2 in self.REG):
-                return -1
-
-            res = hex(int(self.REG[reg1], 16) - int(self.REG[reg2], 16))[2:]
-            if len(res) > 8:
-                res = "0x" + res[len(res) - 8:]
-            else:
-                res = "0x" + "0" * (8 - len(res)) + res
-
-            self.REG[target] = res
+            self.REG[target] = to_hex(int(self.REG[reg1], 16) - int(self.REG[reg2], 16))
             self.PC += 1
             return 0
 
@@ -278,10 +300,6 @@ class Simulator:
             reg1 = args[0].strip().split()[1]
             reg2 = args[1].strip()
             target_label = args[2].strip()
-
-            # check if all are valid registers and labels
-            if not (target_label in self.labels and reg1 in self.REG and reg2 in self.REG):
-                return -1
 
             if self.REG[reg1] != self.REG[reg2]:
                 self.PC = self.labels[target_label] + 1
@@ -297,11 +315,6 @@ class Simulator:
         try:
             args = current_instruction.strip().split(",")
             target_label = args[0].strip().split()[1]
-
-            # check if all are valid labels
-            if not (target_label in self.labels):
-                return -1
-
             self.PC = self.labels[target_label] + 1
             return 0
 
@@ -313,18 +326,15 @@ class Simulator:
             args = current_instruction.strip().split(",")
             to_reg = args[0].strip().split()[1]
             tmp = args[1].strip().split("(")
+
             offset = tmp[0].strip()
             if offset[:2] == "0x":
                 offset = int(offset, 16)
             else:
                 offset = int(offset)
             base_reg = tmp[1][:len(tmp[1]) - 1].strip()
-
-            # check if all are valid registers and labels
-            if not (to_reg in self.REG and base_reg in self.REG):
-                return -1
-
             target_address = offset + int(self.REG[base_reg], 16)
+
             self.REG[to_reg] = "0x" + self.MEM[target_address] + self.MEM[target_address + 1] + self.MEM[
                 target_address + 2] + self.MEM[target_address + 3]
             self.PC += 1
@@ -338,18 +348,15 @@ class Simulator:
             args = current_instruction.strip().split(",")
             from_reg = args[0].strip().split()[1]
             tmp = args[1].strip().split("(")
+
             offset = tmp[0].strip()
             if offset[:2] == "0x":
                 offset = int(offset, 16)
             else:
                 offset = int(offset)
             base_reg = tmp[1][:len(tmp[1]) - 1].strip()
-
-            # check if all are valid registers and labels
-            if not (from_reg in self.REG and base_reg in self.REG):
-                return -1
-
             to_address = offset + int(self.REG[base_reg], 16)
+
             val = self.REG[from_reg]
             self.MEM[to_address] = val[2:4]
             self.MEM[to_address + 1] = val[4:6]
@@ -365,23 +372,8 @@ class Simulator:
         try:
             args = current_instruction.strip().split(",")
             reg = args[0].strip().split()[1]
-
-            if not (reg in self.REG):
-                return -1
-
             immediate = args[1].strip()
-
-            if immediate[:2] != "0x":
-                immediate = hex(int(immediate))
-
-            immediate = immediate[2:]
-
-            if len(immediate) > 8:
-                immediate = "0x" + immediate[len(immediate) - 8:]
-            else:
-                immediate = "0x" + "0" * (8 - len(immediate)) + immediate
-
-            self.REG[reg] = immediate
+            self.REG[reg] = to_hex(immediate)
             self.PC += 1
             return 0
 
@@ -389,17 +381,42 @@ class Simulator:
             return -1
 
     def load_address(self, current_instruction):
+        args = current_instruction.strip().split(",")
+        target_reg = args[0].strip().split()[1]
+        variable_name = args[1].strip()
+        print(target_reg, variable_name)
+        self.REG[target_reg] = to_hex(self.variable_address[variable_name])
+        self.PC += 1
+        return 0
+
+
+
+    def add_immediate(self, current_instruction):
         try:
             args = current_instruction.strip().split(",")
             target_reg = args[0].strip().split()[1]
-            variable_name = args[1].strip()
-            index = hex(self.variable_address[variable_name])[2:]
-            if len(index) > 8:
-                index = "0x" + index[len(index) - 8:]
-            else:
-                index = "0x" + "0" * (8 - len(index)) + index
+            reg1 = args[1].strip()
+            immediate = args[2].strip()
+            self.REG[target_reg] = to_hex(int(to_hex(immediate), 16) + int(self.REG[reg1], 16))
+            self.PC += 1
+            return 0
 
-            self.REG[target_reg] = index
+        except:
+            return -1
+
+    def slt(self, current_instruction):
+        try:
+            args = current_instruction.strip().split(",")
+            target_reg = args[0].strip().split()[1]
+            reg1 = args[1].strip()
+            reg2 = args[2].strip()
+            v1 = int(self.REG[reg1], 16)
+            v2 = int(self.REG[reg2], 16)
+            if v1 < v2:
+                self.REG[target_reg] = to_hex(1)
+            else:
+                self.REG[target_reg] = to_hex(0)
+            self.PC += 1
             return 0
 
         except:
@@ -438,6 +455,10 @@ class Simulator:
                     ret_code = self.load_immediate(current_instruction)
                 elif command == "la":
                     ret_code = self.load_address(current_instruction)
+                elif command == "addi":
+                    ret_code = self.add_immediate(current_instruction)
+                elif command == "slt":
+                    ret_code = self.slt(current_instruction)
                 else:
                     return "Parsing Error at : " + current_instruction + "\nExecution aborted !!."
 
@@ -449,3 +470,6 @@ class Simulator:
 
 sim = Simulator()
 sim.run()
+
+# print(to_hex("-4"))
+
