@@ -76,6 +76,16 @@ class Simulator:
         # variable_names -> int
         self.variable_address = {}
 
+        # GUI
+        self.root = Tk()
+        self.root.title("MIPS Simulator")
+        self.open_button = Button(self.root, text="open", command=self.open_file, bg="black", fg="white")
+        self.load_button = Button(self.root, text="load", command=self.load_program, bg="grey", fg="white")
+        self.next_button = Button(self.root, text="next", command=self.next)
+        self.auto_button = Button(self.root, text="auto", command=self.auto)
+        self.text_box = scrolledtext.ScrolledText(self.root, width=500, height=200, wrap=WORD)
+        self.cib = scrolledtext.ScrolledText(self.root, width=200, height=1, wrap=WORD)
+
     def reset(self):
         self.instruction_set = []
         self.labels = {}
@@ -88,26 +98,28 @@ class Simulator:
     def open_file(self):
         self.filename = askopenfile().name
 
-    def load_program(self, text_box, next_button):
+    def load_program(self):
+        self.text_box.delete("1.0", "end")
+        self.cib.delete("1.0", "end")
+        self.reset()
+
         # implement logic to see if it is a valid assembly file else return
         if not self.filename.endswith((".asm", ".s")):
-            text_box.delete("1.0", "end")
-            text_box.insert(END, "Invalid file.\n")
-            next_button["state"] = "disabled"
+            self.text_box.insert(END, "Invalid file.\n")
+            self.next_button["state"] = "disabled"
             return
 
-        self.reset()
         self.parse()
 
-        text_box.delete("1.0", "end")
         if self.main == -1:
-            text_box.insert(END, "Main function not found . \nExecution aborted .")
-            next_button["state"] = "disabled"
+            self.text_box.insert(END, "Main function not found . \nExecution aborted .")
+            self.next_button["state"] = "disabled"
             return
 
-        next_button["state"] = "active"
-        self.display_reg_mem(text_box)
+        self.next_button["state"] = "active"
         self.PC = self.main + 1
+        self.cib.insert(END, "current instruction : " + self.instruction_set[self.PC])
+        self.display_reg_mem(self.text_box)
 
         print(self.instruction_set)
         print(self.labels)
@@ -115,27 +127,34 @@ class Simulator:
 
         return
 
-    def auto(self, text_box):
-        text_box.delete("1.0", "end")
+    def auto(self):
+        self.text_box.delete("1.0", "end")
+        self.cib.delete("1.0", "end")
         while self.PC < len(self.instruction_set):
             message = self.single_instruction_exe()
             if message != "success":
-                text_box.delete("1.0", "end")
-                text_box.insert(END, message)
+                self.text_box.delete("1.0", "end")
+                self.text_box.insert(END, message)
                 return
-        self.display_reg_mem(text_box)
+        self.display_reg_mem(self.text_box)
+        self.cib.insert(END, "execution completed.")
 
-    def next(self, text_box, next_button):
-        text_box.delete("1.0", "end")
+    def next(self):
+        self.text_box.delete("1.0", "end")
+        self.cib.delete("1.0", "end")
+
         message = self.single_instruction_exe()
         if message == "success":
-            self.display_reg_mem(text_box)
+            self.display_reg_mem(self.text_box)
         else:
-            text_box.insert(END, message)
+            self.text_box.insert(END, message)
 
         if self.PC >= len(self.instruction_set):
-            next_button["state"] = "disabled"
+            self.cib.insert(END, 'execution completed.')
+            self.next_button["state"] = "disabled"
             return
+        else:
+            self.cib.insert(END, "current instruction : " + self.instruction_set[self.PC])
 
     def display_reg_mem(self, text_box):
         text_box.insert(END, "\nREGISTERS : \n\n")
@@ -146,19 +165,13 @@ class Simulator:
             text_box.insert(END, byte + " ")
 
     def run(self):
-        root = Tk()
-        open_button = Button(root, text="open", command=self.open_file, bg="black", fg="white")
-        load_button = Button(root, text="load", command=lambda: self.load_program(text_box, next_button), bg="grey", fg="white")
-        next_button = Button(root, text="next", command=lambda: self.next(text_box, next_button))
-        auto_button = Button(root, text="auto", command=lambda: self.auto(text_box))
-        # text_box = Text(root, height=500, width=200)
-        text_box = scrolledtext.ScrolledText(root, width=500, height=200, wrap=WORD)
 
-        open_button.pack()
-        load_button.pack()
-        next_button.pack()
-        auto_button.pack()
-        text_box.pack()
+        self.open_button.pack()
+        self.load_button.pack()
+        self.auto_button.pack()
+        self.cib.pack()
+        self.next_button.pack()
+        self.text_box.pack()
 
         # open_button.grid(row=1, column=1)
         # load_button.grid(row=2, column=1)
@@ -166,7 +179,7 @@ class Simulator:
         # auto_button.grid(row=4, column=1)
         # text_box.grid(row=5, column=2)
 
-        root.mainloop()
+        self.root.mainloop()
         return
 
     def parse_data_segment(self, lines):
@@ -394,8 +407,6 @@ class Simulator:
         self.REG[target_reg] = to_hex(self.variable_address[variable_name])
         self.PC += 1
         return 0
-
-
 
     def add_immediate(self, current_instruction):
         try:
