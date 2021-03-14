@@ -1,4 +1,5 @@
 CO_Project_Phase1 (Team Name - Byte Me)
+
 MIPS Simulator
 Simulator on the lines of QtSPIM supporting the MIPS instructions ADD/SUB, BNE, Jump, LD/ST, ADDI, LI, SLT, LA.All the architecture specifications like register size, no of registers and instruction width are same as MIPS.The simulator reads in an assembly file, execute the instructions, and in the end display the contents of the registers, and the memory.
 
