@@ -33,7 +33,7 @@ GUI when next button is used:
 
 ![Screenshot (210)](https://user-images.githubusercontent.com/70936290/111072994-00380700-8503-11eb-81f1-ad3b910e90eb.png)
 
-If we press on the auto button, the program is executed at once and the registers values are are changed according to their use in the program.
+If we press on the auto button, the program is executed at once and the registers values are changed according to their use in the program.
 GUI after execution completed:
 
 ![Screenshot (211)](https://user-images.githubusercontent.com/70936290/111073037-23fb4d00-8503-11eb-9b92-c67548763fa6.png)
