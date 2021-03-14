@@ -19,7 +19,7 @@ PC value(value of line number) is shown in the console during execution.
 Different functions are written for the MIPS instructions that are supported.If any other instructions which are not implemented are given or during syntax errors, the program gives a Parsing Error showing at which instruction the parsing went wrong.
 If no errors are shown during parsing,we can run the program by using either the auto button or next button(for line by line execution),if the program is run perfectly,a success message "Execution copleted" is shown.
 
-Let us see how the GUI looks like during execution of bubble sort program provided in the repo.
+Let us see how the GUI looks like during execution of bubble sort program provided in the repository.
 GUI after opening the file:
 
 ![Screenshot (208)](https://user-images.githubusercontent.com/70936290/111072783-185b5680-8502-11eb-8a0d-bcace25293a6.png)
