@@ -47,13 +47,6 @@ class Simulator:
         self.REG = default_REG.copy()
         self.MEM = ["00"] * pow(2, 12)
 
-    def reset(self):
-        self.instruction_set = []
-        self.labels = {}
-        self.PC = 0
-        self.REG = default_REG.copy()
-        self.MEM = ["00"] * pow(2, 12)
-
     def open_file(self):
         self.filename = askopenfile().name
 
