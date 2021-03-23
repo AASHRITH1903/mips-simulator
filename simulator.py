@@ -38,6 +38,7 @@ default_REG = {
 }
 
 
+# to convert int , dec-str , hex-str ------------> hex-str with 8 digits (REG format)
 def to_hex(num):
     if type(num) == int:
         num = hex(num)
@@ -75,6 +76,13 @@ class Simulator:
         self.MEM = ["."] * pow(2, 12)
         # variable_names -> int
         self.variable_address = {}
+
+        self.L1 = ""
+        self.L2 = []
+        self.L3 = []
+        self.L4 = []
+
+        self.dep = {}
 
         # GUI
         self.root = Tk()
@@ -172,12 +180,6 @@ class Simulator:
         self.cib.pack()
         self.next_button.pack()
         self.text_box.pack()
-
-        # open_button.grid(row=1, column=1)
-        # load_button.grid(row=2, column=1)
-        # next_button.grid(row=3, column=1)
-        # auto_button.grid(row=4, column=1)
-        # text_box.grid(row=5, column=2)
 
         self.root.mainloop()
         return
@@ -281,6 +283,55 @@ class Simulator:
                 self.parse_text_segment(lines[text_segment_start + 1:data_segment_start])
 
         return
+
+    def IF(self):
+        self.L1 = self.instruction_set[self.PC]
+        self.PC += 1
+
+    def IDRF(self):
+        current_instruction = self.L1
+        command = self.get_command(current_instruction)
+
+        if command == "add" or command == "sub":
+            args = current_instruction.strip().split(",")
+            target = args[0].strip().split()[1]
+            reg1 = args[1].strip()
+            reg2 = args[2].strip()
+            self.L2 = [command, target, int(self.REG[reg1], 16), int(self.REG[reg2], 16)]
+            self.dep[target] = True
+
+
+        elif command == "bne":
+            args = current_instruction.strip().split(",")
+            reg1 = args[0].strip().split()[1]
+            reg2 = args[1].strip()
+            target_label = args[2].strip()
+            if self.REG[reg1] != self.REG[reg2]:
+                # branch taken
+                self.PC = self.labels[target_label] + 1
+                self.L2 = ["bne", True]
+            else:
+                # branch not taken
+                self.L2 = ["bne", False]
+
+        elif command == "j":
+            args = current_instruction.strip().split(",")
+            target_label = args[0].strip().split()[1]
+            self.PC = self.labels[target_label] + 1
+            self.L2 = ["j", True]
+
+        elif command == "ld":
+            args = current_instruction.strip().split(",")
+            to_reg = args[0].strip().split()[1]
+            tmp = args[1].strip().split("(")
+
+            offset = tmp[0].strip()
+            if offset[:2] == "0x":
+                offset = int(offset, 16)
+            else:
+                offset = int(offset)
+            base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+
 
     def get_command(self, current):
         return current.split(" ", 1)[0]
@@ -390,9 +441,9 @@ class Simulator:
     def load_immediate(self, current_instruction):
         try:
             args = current_instruction.strip().split(",")
-            reg = args[0].strip().split()[1]
+            target_reg = args[0].strip().split()[1]
             immediate = args[1].strip()
-            self.REG[reg] = to_hex(immediate)
+            self.REG[target_reg] = to_hex(immediate)
             self.PC += 1
             return 0
 
