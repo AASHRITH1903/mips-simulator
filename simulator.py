@@ -13,8 +13,8 @@ default_REG = {
     "$a3": "0x00000000",
     "$t0": "0x00000000",
     "$t1": "0x00000000",
-    "$t2": "0x00000000",
-    "$t3": "0x00000000",
+    "$t2": "0x00000002",
+    "$t3": "0x00000003",
     "$t4": "0x00000000",
     "$t5": "0x00000000",
     "$t6": "0x00000000",
@@ -36,6 +36,7 @@ default_REG = {
     "$fp": "0x00000000",
     "$ra": "0x00000000",
 }
+
 
 
 # to convert int , dec-str , hex-str ------------> hex-str with 8 digits (REG format)
@@ -63,6 +64,9 @@ def to_hex(num):
     return '-' + num if neg else num
 
 
+def get_opcode(current):
+    return current.split(" ", 1)[0]
+
 class Simulator:
     def __init__(self):
         self.filename = ""
@@ -70,23 +74,14 @@ class Simulator:
         self.labels = {}
         self.PC = 0
         self.main = -1
-        # register_name -> hex string
         self.REG = default_REG.copy()
-        # char , 2 hex digits , _ , . ,
         self.MEM = ["."] * pow(2, 12)
-        # variable_names -> int
         self.variable_address = {}
 
-        self.L1 = ""
-        self.L2 = []
-        self.L3 = []
-        self.L4 = []
-
-        self.dep = {}
 
         # GUI
         self.root = Tk()
-        self.root.title("MIPS Simulator")
+        self.root.title("Normal MIPS Simulator")
         self.open_button = Button(self.root, text="open", command=self.open_file, bg="black", fg="white")
         self.load_button = Button(self.root, text="load", command=self.load_program, bg="grey", fg="white")
         self.next_button = Button(self.root, text="next", command=self.next)
@@ -94,14 +89,17 @@ class Simulator:
         self.text_box = scrolledtext.ScrolledText(self.root, width=500, height=200, wrap=WORD)
         self.cib = scrolledtext.ScrolledText(self.root, width=200, height=1, wrap=WORD)
 
-    def reset(self):
-        self.instruction_set = []
-        self.labels = {}
-        self.PC = 0
-        self.main = -1
-        self.REG = default_REG.copy()
-        self.MEM = ["."] * pow(2, 12)
-        self.variable_address = {}
+    def run(self):
+
+        self.open_button.pack()
+        self.load_button.pack()
+        self.auto_button.pack()
+        self.cib.pack()
+        self.next_button.pack()
+        self.text_box.pack()
+
+        self.root.mainloop()
+        return
 
     def open_file(self):
         self.filename = askopenfile().name
@@ -111,7 +109,6 @@ class Simulator:
         self.cib.delete("1.0", "end")
         self.reset()
 
-        # implement logic to see if it is a valid assembly file else return
         if not self.filename.endswith((".asm", ".s")):
             self.text_box.insert(END, "Invalid file.\n")
             self.next_button["state"] = "disabled"
@@ -135,53 +132,38 @@ class Simulator:
 
         return
 
-    def auto(self):
-        self.text_box.delete("1.0", "end")
-        self.cib.delete("1.0", "end")
-        while self.PC < len(self.instruction_set):
-            message = self.single_instruction_exe()
-            if message != "success":
-                self.text_box.delete("1.0", "end")
-                self.text_box.insert(END, message)
-                return
-        self.display_reg_mem(self.text_box)
-        self.cib.insert(END, "execution completed.")
 
-    def next(self):
-        self.text_box.delete("1.0", "end")
-        self.cib.delete("1.0", "end")
+    def reset(self):
+        self.instruction_set = []
+        self.labels = {}
+        self.PC = 0
+        self.main = -1
+        self.REG = default_REG.copy()
+        self.MEM = ["."] * pow(2, 12)
+        self.variable_address = {}
 
-        message = self.single_instruction_exe()
-        if message == "success":
-            self.display_reg_mem(self.text_box)
+    def parse(self):
+        file = open(self.filename, 'r')
+        lines = file.readlines()
+        data_segment_start = -1
+        text_segment_start = -1
+        for idx, line in enumerate(lines):
+            if line.strip() == ".text":
+                text_segment_start = idx
+            elif line.strip() == ".data":
+                data_segment_start = idx
+
+        if data_segment_start == -1:
+            # data segment doesn't exist
+            self.parse_text_segment(lines[text_segment_start + 1:])
         else:
-            self.text_box.insert(END, message)
+            if data_segment_start < text_segment_start:
+                self.parse_data_segment(lines[data_segment_start + 1:text_segment_start])
+                self.parse_text_segment(lines[text_segment_start + 1:])
+            else:
+                self.parse_data_segment(lines[data_segment_start + 1:])
+                self.parse_text_segment(lines[text_segment_start + 1:data_segment_start])
 
-        if self.PC >= len(self.instruction_set):
-            self.cib.insert(END, 'execution completed.')
-            self.next_button["state"] = "disabled"
-            return
-        else:
-            self.cib.insert(END, "current instruction : " + self.instruction_set[self.PC])
-
-    def display_reg_mem(self, text_box):
-        text_box.insert(END, "\nREGISTERS : \n\n")
-        for key in self.REG:
-            text_box.insert(END, key + " : " + self.REG[key] + "\n")
-        text_box.insert(END, "\nMEMORY : \n\n")
-        for byte in self.MEM:
-            text_box.insert(END, byte + " ")
-
-    def run(self):
-
-        self.open_button.pack()
-        self.load_button.pack()
-        self.auto_button.pack()
-        self.cib.pack()
-        self.next_button.pack()
-        self.text_box.pack()
-
-        self.root.mainloop()
         return
 
     def parse_data_segment(self, lines):
@@ -260,81 +242,45 @@ class Simulator:
 
         return
 
-    def parse(self):
-        file = open(self.filename, 'r')
-        lines = file.readlines()
-        data_segment_start = -1
-        text_segment_start = -1
-        for idx, line in enumerate(lines):
-            if line.strip() == ".text":
-                text_segment_start = idx
-            elif line.strip() == ".data":
-                data_segment_start = idx
-
-        if data_segment_start == -1:
-            # data segment doesn't exist
-            self.parse_text_segment(lines[text_segment_start + 1:])
-        else:
-            if data_segment_start < text_segment_start:
-                self.parse_data_segment(lines[data_segment_start + 1:text_segment_start])
-                self.parse_text_segment(lines[text_segment_start + 1:])
-            else:
-                self.parse_data_segment(lines[data_segment_start + 1:])
-                self.parse_text_segment(lines[text_segment_start + 1:data_segment_start])
-
-        return
-
-    def IF(self):
-        self.L1 = self.instruction_set[self.PC]
-        self.PC += 1
-
-    def IDRF(self):
-        current_instruction = self.L1
-        command = self.get_command(current_instruction)
-
-        if command == "add" or command == "sub":
-            args = current_instruction.strip().split(",")
-            target = args[0].strip().split()[1]
-            reg1 = args[1].strip()
-            reg2 = args[2].strip()
-            self.L2 = [command, target, int(self.REG[reg1], 16), int(self.REG[reg2], 16)]
-            self.dep[target] = True
+    def display_reg_mem(self, text_box):
+        text_box.insert(END, "\nREGISTERS : \n\n")
+        for key in self.REG:
+            text_box.insert(END, key + " : " + self.REG[key] + "\n")
+        text_box.insert(END, "\nMEMORY : \n\n")
+        for byte in self.MEM:
+            text_box.insert(END, byte + " ")
 
 
-        elif command == "bne":
-            args = current_instruction.strip().split(",")
-            reg1 = args[0].strip().split()[1]
-            reg2 = args[1].strip()
-            target_label = args[2].strip()
-            if self.REG[reg1] != self.REG[reg2]:
-                # branch taken
-                self.PC = self.labels[target_label] + 1
-                self.L2 = ["bne", True]
-            else:
-                # branch not taken
-                self.L2 = ["bne", False]
 
-        elif command == "j":
-            args = current_instruction.strip().split(",")
-            target_label = args[0].strip().split()[1]
-            self.PC = self.labels[target_label] + 1
-            self.L2 = ["j", True]
+    def auto(self):
+        self.text_box.delete("1.0", "end")
+        self.cib.delete("1.0", "end")
+        while self.PC < len(self.instruction_set):
+            message = self.single_instruction_exe()
+            if message != "success":
+                self.text_box.delete("1.0", "end")
+                self.text_box.insert(END, message)
+                return
+        self.display_reg_mem(self.text_box)
+        self.cib.insert(END, "execution completed.")
 
-        elif command == "ld":
-            args = current_instruction.strip().split(",")
-            to_reg = args[0].strip().split()[1]
-            tmp = args[1].strip().split("(")
+    def next(self):
+         self.text_box.delete("1.0", "end")
+         self.cib.delete("1.0", "end")
 
-            offset = tmp[0].strip()
-            if offset[:2] == "0x":
-                offset = int(offset, 16)
-            else:
-                offset = int(offset)
-            base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+         message = self.single_instruction_exe()
+         if message == "success":
+             self.display_reg_mem(self.text_box)
+         else:
+             self.text_box.insert(END, message)
 
-
-    def get_command(self, current):
-        return current.split(" ", 1)[0]
+         if self.PC >= len(self.instruction_set):
+             self.cib.insert(END, 'execution completed.')
+             self.next_button["state"] = "disabled"
+             return
+         else:
+             self.cib.insert(END, "current instruction : " + self.instruction_set[self.PC])
+        
 
     def add(self, current_instruction):
         try:
@@ -505,7 +451,7 @@ class Simulator:
             if self.is_label(current_instruction):
                 self.PC += 1
             else:
-                command = self.get_command(current_instruction)
+                command = get_opcode(current_instruction)
                 ret_code = 0
                 if command == "add":
                     ret_code = self.add(current_instruction)
@@ -535,9 +481,4 @@ class Simulator:
 
         return "success"
 
-
-sim = Simulator()
-sim.run()
-
-# print(to_hex("-4"))
 
