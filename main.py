@@ -3,7 +3,7 @@ from pipeline import *
 
 
 sim = Simulator()
-# sim.run()
+sim.run()
 
-ps =  Pipeline()
-ps.run()
+# ps =  Pipeline()
+# ps.run()

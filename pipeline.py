@@ -81,6 +81,147 @@ class Pipeline(Simulator):
         self.L4 = None
 
         self.dep = default_dep.copy()
+        self.stalls = 0
+        self.branch_taken = False
+        self.stop_IF = False
+
+        self.total_clock_cycles = 0
+
+    def reset(self):
+        self.instruction_set = []
+        self.labels = {}
+        self.PC = 0
+        self.main = -1
+        self.REG = default_REG.copy()
+        self.MEM = ["."] * pow(2, 12)
+        self.variable_address = {}
+
+        self.L1 = None
+        self.L2 = None
+        self.L3 = None
+        self.L4 = None
+
+        self.dep = default_dep.copy()
+        self.stalls = 0
+        self.branch_taken = False
+        self.stop_IF = False
+
+        self.total_clock_cycles = 0
+
+    def next(self):
+        self.single_clock_cycle()
+        self.total_clock_cycles += 1
+
+        self.text_box.delete("1.0", "end")
+        self.cib.delete("1.0", "end")
+
+        self.display_reg_mem(self.text_box)
+        print(self.L1, self.L2, self.L3, self.L4)
+        print("stalls : ", self.stalls)
+        print("total clock cycles : ", self.total_clock_cycles)
+
+        print("-----------------------------------------")
+
+        if not (self.L1 or self.L2 or self.L3 or self.L4):
+            self.next_button["state"] = "disabled"
+            return
+
+    def single_clock_cycle(self):
+        self.wb()
+        self.mem()
+        self.ex()
+        self.id_rf()
+        self.i_f()
+        self.dep[to_be_updated] = false
+        self.Total_stalls += (self.stalls - 1)
+
+    def i_f(self):
+        self.L1 = self.instruction_set[self.PC]
+        self.PC += 1
+
+    def id_rf(self):
+        current_instruction = self.L1
+        command = get_opcode(current_instruction)
+
+        if command == "add" or command == "sub":
+            args = current_instruction.strip().split(",")
+            target = args[0].strip().split()[1]
+            reg1 = args[1].strip()
+            reg2 = args[2].strip()
+            if self.dep[reg1] or self.dep[reg2] == false:
+                self.dep[target] = True
+                self.L2 = [command, target, int(self.REG[reg1], 16), int(self.REG[reg2], 16)]
+            else:
+                self.stalls += 1
+                self.L2 = []
+
+
+
+        elif command == "bne":
+            args = current_instruction.strip().split(",")
+            reg1 = args[0].strip().split()[1]
+            reg2 = args[1].strip()
+            target_label = args[2].strip()
+            if self.REG[reg1] != self.REG[reg2]:
+                # branch taken
+                self.PC = self.labels[target_label] + 1
+                self.L2 = ["bne", True]
+            else:
+                # branch not taken
+                self.L2 = ["bne", False]
+
+        elif command == "j":
+            args = current_instruction.strip().split(",")
+            target_label = args[0].strip().split()[1]
+            self.PC = self.labels[target_label] + 1
+            self.L2 = ["j", True]
+
+        elif command == "ld":
+            args = current_instruction.strip().split(",")
+            to_reg = args[0].strip().split()[1]
+            tmp = args[1].strip().split("(")
+
+            offset = tmp[0].strip()
+            if offset[:2] == "0x":
+                offset = int(offset, 16)
+            else:
+                offset = int(offset)
+            base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+
+    def ex(self):
+        if not self.L2:
+            self.L3 = []
+        else:
+            self.L3 = self.L2
+
+    def mem(self):
+        if not self.L3:
+            self.L4 = []
+        else:
+            self.L4 = self.L3
+
+    def wb(self):
+        if not self.L4:
+            self.L4 = []
+        else:
+            command = self.L4[0]
+            if command == "add" or "sub":
+                self.to_be_updated = self.L4[1]
+
+
+
+
+class Pipeline_DF(Simulator):
+    def __init__(self):
+        super().__init__()
+        self.root.title("Pipelined MIPS Simulator")
+
+        self.L1 = None
+        self.L2 = None
+        self.L3 = None
+        self.L4 = None
+
+        self.dep = default_dep.copy()
         self.df = default_df.copy()
         self.stalls = 0
         self.branch_taken = False
