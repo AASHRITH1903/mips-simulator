@@ -82,6 +82,9 @@ class Simulator:
         self.L3 = []
         self.L4 = []
 
+        self.stalls = 0
+        self.Total_stalls = 0
+        self.to_be_updated = ""
         self.dep = {}
 
         # GUI
@@ -284,11 +287,11 @@ class Simulator:
 
         return
 
-    def IF(self):
+    def i_f(self):
         self.L1 = self.instruction_set[self.PC]
         self.PC += 1
 
-    def IDRF(self):
+    def id_rf(self):
         current_instruction = self.L1
         command = self.get_command(current_instruction)
 
@@ -297,8 +300,13 @@ class Simulator:
             target = args[0].strip().split()[1]
             reg1 = args[1].strip()
             reg2 = args[2].strip()
-            self.L2 = [command, target, int(self.REG[reg1], 16), int(self.REG[reg2], 16)]
-            self.dep[target] = True
+            if self.dep[reg1] or self.dep[reg2] == false:
+                self.dep[target] = True
+                self.L2 = [command, target, int(self.REG[reg1], 16), int(self.REG[reg2], 16)]
+            else:
+                self.stalls += 1
+                self.L2 = []
+
 
 
         elif command == "bne":
@@ -332,6 +340,34 @@ class Simulator:
                 offset = int(offset)
             base_reg = tmp[1][:len(tmp[1]) - 1].strip()
 
+    def ex(self):
+        if not self.L2:
+            self.L3 = []
+        else:
+            self.L3 = self.L2
+
+    def mem(self):
+        if not self.L3:
+            self.L4 = []
+        else:
+            self.L4 = self.L3
+
+    def wb(self):
+        if not self.L4:
+            self.L4 = []
+        else:
+            command = self.L4[0]
+            if command == "add" or "sub":
+                self.to_be_updated = self.L4[1]
+
+    def pipe_line(self):
+        self.wb()
+        self.mem()
+        self.ex()
+        self.id_rf()
+        self.i_f()
+        self.dep[to_be_updated] = false
+        self.Total_stalls += (self.stalls - 1)
 
     def get_command(self, current):
         return current.split(" ", 1)[0]
@@ -540,4 +576,3 @@ sim = Simulator()
 sim.run()
 
 # print(to_hex("-4"))
-
