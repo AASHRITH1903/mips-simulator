@@ -87,7 +87,7 @@ class Simulator:
         self.next_button = Button(self.root, text="next", command=self.next)
         self.auto_button = Button(self.root, text="auto", command=self.auto)
         self.text_box = scrolledtext.ScrolledText(self.root, width=500, height=200, wrap=WORD)
-        self.cib = scrolledtext.ScrolledText(self.root, width=200, height=1, wrap=WORD)
+        self.cib = scrolledtext.ScrolledText(self.root, width=200, height=2, wrap=WORD)
 
     def run(self):
 
@@ -242,13 +242,13 @@ class Simulator:
 
         return
 
-    def display_reg_mem(self, text_box):
-        text_box.insert(END, "\nREGISTERS : \n\n")
+    def display_reg_mem(self):
+        self.text_box.insert(END, "\nREGISTERS : \n\n")
         for key in self.REG:
-            text_box.insert(END, key + " : " + self.REG[key] + "\n")
-        text_box.insert(END, "\nMEMORY : \n\n")
+            self.text_box.insert(END, key + " : " + self.REG[key] + "\n")
+        self.text_box.insert(END, "\nMEMORY : \n\n")
         for byte in self.MEM:
-            text_box.insert(END, byte + " ")
+            self.text_box.insert(END, byte + " ")
 
 
 
@@ -261,7 +261,7 @@ class Simulator:
                 self.text_box.delete("1.0", "end")
                 self.text_box.insert(END, message)
                 return
-        self.display_reg_mem(self.text_box)
+        self.display_reg_mem()
         self.cib.insert(END, "execution completed.")
 
     def next(self):
@@ -270,7 +270,7 @@ class Simulator:
 
          message = self.single_instruction_exe()
          if message == "success":
-             self.display_reg_mem(self.text_box)
+             self.display_reg_mem()
          else:
              self.text_box.insert(END, message)
 

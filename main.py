@@ -5,5 +5,8 @@ from pipeline import *
 sim = Simulator()
 sim.run()
 
-# ps =  Pipeline()
-# ps.run()
+ps =  Pipeline()
+ps.run()
+
+p = Pipeline_DF()
+p.run()
