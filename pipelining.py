@@ -125,6 +125,12 @@ class Pipelined(Simulator):
         self.main = -1
         self.REG = default_REG.copy()
         self.MEM = ["."] * pow(2, 12)
+
+        self.MEM[0] = "00"
+        self.MEM[1] = "00"
+        self.MEM[2] = "00"
+        self.MEM[3] = "09"
+
         self.variable_address = {}
 
         self.L1 = None
@@ -164,7 +170,7 @@ class Pipelined(Simulator):
     def single_clock_cycle(self):
         self.WB()
         self.mem()
-        self.ex()
+        self.EXE()
         self.IDRF()
         if not self.stop_IF:
             self.IF()
@@ -205,10 +211,11 @@ class Pipelined(Simulator):
                 self.stalls += 1
                 self.stop_IF = True
                 self.L2 = None
-            else:
-                self.dep[target] = True
-                self.stop_IF = False
-                self.L2 = [command, target, int(self.REG[reg1], 16), int(self.REG[reg2], 16)]
+                return
+
+            self.dep[target] = True
+            self.stop_IF = False
+            self.L2 = [command, target, int(self.REG[reg1], 16), int(self.REG[reg2], 16)]
 
 
 
@@ -238,13 +245,52 @@ class Pipelined(Simulator):
             tmp = args[1].strip().split("(")
 
             offset = tmp[0].strip()
-            if offset[:2] == "0x":
+            if len(offset) >= 2 and offset[:2] == "0x":
                 offset = int(offset, 16)
             else:
                 offset = int(offset)
             base_reg = tmp[1][:len(tmp[1]) - 1].strip()
 
-    def ex(self):
+            is_stall = self.dep[base_reg]
+
+            if is_stall:
+                self.stalls += 1
+                self.stop_IF = True
+                self.L2 = None
+                return
+
+            self.dep[to_reg] = True
+            self.stop_IF = False
+            self.L2 = ["ld", to_reg, offset, int(self.REG[base_reg], 16)]
+
+        elif command == "st":
+            args = current_instruction.strip().split(",")
+            from_reg = args[0].strip().split()[1]
+            tmp = args[1].strip().split("(")
+
+            offset = tmp[0].strip()
+            if len(offset) >=2 and offset[:2] == "0x":
+                offset = int(offset, 16)
+            else:
+                offset = int(offset)
+            base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+
+            is_stall = (self.dep[base_reg] ) or (self.dep[from_reg] )
+
+            if is_stall:
+                # stall at IDRF
+                self.stalls += 1
+                self.stop_IF = True
+                self.L2 = None
+                return
+
+            self.stop_IF = False
+            self.L2 = ["st", self.REG[from_reg], offset, int(self.REG[base_reg], 16)]
+
+
+
+
+    def EXE(self):
         if self.L2 == None:
             self.L3 = None
             return
@@ -278,17 +324,24 @@ class Pipelined(Simulator):
             self.L4 = [self.L3[1], val ]
         
         elif self.L3[0] == "st":
-            self.L4 = None
-            self.MEM[self.L3[2]] = self.REG[self.L3[1]]
+            self.MEM[self.L3[2]] = self.L3[1][2:4]
+            self.MEM[self.L3[2] + 1] = self.L3[1][4:6]
+            self.MEM[self.L3[2] + 2] = self.L3[1][6:8]
+            self.MEM[self.L3[2] + 3] = self.L3[1][8:10]
+
+            self.L4 = ["st"]
+
         elif self.L3[0] == "add" or self.L3[0] == "sub":
             self.L4 = self.L3[1:]
+
         else:
             self.L4 = self.L3
 
     def WB(self):
         if self.L4 == None:
             return
-        if self.L4[0] == "bne" or self.L4[0] == "j":
+
+        if self.L4[0] == "bne" or self.L4[0] == "j" or self.L4[0] == "st":
             return
         else:
             target_reg = self.L4[0]
@@ -353,6 +406,12 @@ class Pipelined_DF(Simulator):
         self.main = -1
         self.REG = default_REG.copy()
         self.MEM = ["."] * pow(2, 12)
+
+        self.MEM[0] = "00"
+        self.MEM[1] = "00"
+        self.MEM[2] = "00"
+        self.MEM[3] = "09"
+
         self.variable_address = {}
 
         self.L1 = None
@@ -444,8 +503,6 @@ class Pipelined_DF(Simulator):
             self.L2 = [command, target, v1, v2]
             self.stop_IF = False
 
-            print("L2 : ", self.L2)
-
 
         elif command == "bne":
             args = current_instruction.strip().split(",")
@@ -516,7 +573,7 @@ class Pipelined_DF(Simulator):
                 self.L2 = None
                 return
 
-            v1 = self.df[from_reg] if self.dep[from_reg]  else int(self.REG[from_reg], 16)
+            v1 = to_hex(self.df[from_reg]) if self.dep[from_reg]  else self.REG[from_reg]
             v2 = self.df[base_reg] if self.dep[base_reg]  else int(self.REG[base_reg], 16)
 
             self.L2 = ["st", v1, offset, v2]
@@ -560,8 +617,12 @@ class Pipelined_DF(Simulator):
             self.df[self.L3[1]] = int(val, 16)
         
         elif self.L3[0] == "st":
-            self.MEM[self.L3[2]] = self.L3[1]
-            self.L4 = None
+            self.MEM[self.L3[2]] = self.L3[1][2:4]
+            self.MEM[self.L3[2] + 1] = self.L3[1][4:6]
+            self.MEM[self.L3[2] + 2] = self.L3[1][6:8]
+            self.MEM[self.L3[2] + 3] = self.L3[1][8:10]
+
+            self.L4 = ["st"]
 
         elif self.L3[0] == "add" or self.L3[0] == "sub":
             self.L4 = self.L3[1:]
@@ -573,7 +634,7 @@ class Pipelined_DF(Simulator):
     def WB(self):
         if self.L4 == None:
             return
-        if self.L4[0] == "bne" or self.L4[0] == "j":
+        if self.L4[0] == "bne" or self.L4[0] == "j" or self.L4[0] == "st":
             return
         else:
             target_reg = self.L4[0]
