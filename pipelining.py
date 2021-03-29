@@ -162,17 +162,17 @@ class Pipelined(Simulator):
         
 
     def single_clock_cycle(self):
-        self.wb()
+        self.WB()
         self.mem()
         self.ex()
-        self.id_rf()
+        self.IDRF()
         if not self.stop_IF:
-            self.i_f()
+            self.IF()
 
         if self.to_be_updated != None:
             self.dep[self.to_be_updated] = False
 
-    def i_f(self):
+    def IF(self):
         if self.branch_taken == True:
             # similar to stall at IF
             self.stalls += 1
@@ -186,7 +186,7 @@ class Pipelined(Simulator):
         else:
             self.L1 = None
 
-    def id_rf(self):
+    def IDRF(self):
         if self.L1 == None:
             self.L2 = None
             return
@@ -285,7 +285,7 @@ class Pipelined(Simulator):
         else:
             self.L4 = self.L3
 
-    def wb(self):
+    def WB(self):
         if self.L4 == None:
             return
         if self.L4[0] == "bne" or self.L4[0] == "j":
@@ -420,7 +420,6 @@ class Pipelined_DF(Simulator):
             self.L2 = None
             return
         current_instruction = self.L1
-        print("Inside IDRF : ", current_instruction)
         command = get_opcode(current_instruction)
 
         if command == "add" or command == "sub":
@@ -475,21 +474,53 @@ class Pipelined_DF(Simulator):
             tmp = args[1].strip().split("(")
 
             offset = tmp[0].strip()
-            if offset[:2] == "0x":
+            if len(offset) >= 2 and offset[:2] == "0x":
                 offset = int(offset, 16)
             else:
                 offset = int(offset)
 
             base_reg = tmp[1][:len(tmp[1]) - 1].strip()
 
-            v = 0
-            if self.dep[base_reg]:
-                v = self.df[base_reg]
-            else:                    
-                v = int(self.REG[base_reg], 16)
+            is_stall = self.dep[base_reg] and self.df[base_reg] == None
+
+            if is_stall:
+                # stall at IDRF
+                self.stalls += 1
+                self.stop_IF = True
+                self.L2 = None
+                return
+
+            v = self.df[base_reg] if self.dep[base_reg] else int(self.REG[base_reg], 16)
 
             self.L2 = ["ld", to_reg, offset, v]
             self.dep[to_reg] = True
+
+        elif command == "st":
+            args = current_instruction.strip().split(",")
+            from_reg = args[0].strip().split()[1]
+            tmp = args[1].strip().split("(")
+
+            offset = tmp[0].strip()
+            if len(offset) >=2 and offset[:2] == "0x":
+                offset = int(offset, 16)
+            else:
+                offset = int(offset)
+            base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+
+            is_stall = (self.dep[base_reg] and self.df[base_reg] == None ) or (self.dep[from_reg] and self.df[from_reg] == None )
+
+            if is_stall:
+                # stall at IDRF
+                self.stalls += 1
+                self.stop_IF = True
+                self.L2 = None
+                return
+
+            v1 = self.df[from_reg] if self.dep[from_reg]  else int(self.REG[from_reg], 16)
+            v2 = self.df[base_reg] if self.dep[base_reg]  else int(self.REG[base_reg], 16)
+
+            self.L2 = ["st", v1, offset, v2]
+
 
             
     def EXE(self):
@@ -499,11 +530,11 @@ class Pipelined_DF(Simulator):
 
         if self.L2[0] == "add":
             self.L3 = ["add", self.L2[1], self.L2[2] + self.L2[3]]
-            self.df[self.L2[1]] =  self.L2[2] + self.L2[3]
+            self.df[self.L3[1]] = self.L3[2]
 
         elif self.L2[0] == "sub":
             self.L3 = ["sub", self.L2[1], self.L2[2] - self.L2[3]]
-            self.df[self.L2[1]] =  self.L2[2] - self.L2[3]
+            self.df[self.L3[1]] = self.L3[2]
 
         elif self.L2[0] == "ld":
             self.L3 = ["ld", self.L2[1], self.L2[2] + self.L2[3]]
@@ -529,10 +560,12 @@ class Pipelined_DF(Simulator):
             self.df[self.L3[1]] = int(val, 16)
         
         elif self.L3[0] == "st":
+            self.MEM[self.L3[2]] = self.L3[1]
             self.L4 = None
-            self.MEM[self.L3[2]] = self.REG[self.L3[1]]
+
         elif self.L3[0] == "add" or self.L3[0] == "sub":
             self.L4 = self.L3[1:]
+
         else:
             self.L4 = self.L3
 

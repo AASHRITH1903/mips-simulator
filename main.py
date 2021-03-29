@@ -1,12 +1,11 @@
-from simulator import *
-from pipeline import *
+from pipelining import *
 
 
 sim = Simulator()
 sim.run()
 
-ps =  Pipeline()
-ps.run()
-
-p = Pipeline_DF()
+p =  Pipelined()
 p.run()
+
+pdf = Pipelined_DF()
+pdf.run()

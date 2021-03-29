@@ -344,10 +344,12 @@ class Simulator:
             tmp = args[1].strip().split("(")
 
             offset = tmp[0].strip()
-            if offset[:2] == "0x":
+
+            if len(offset) >= 2 and offset[:2] == "0x":
                 offset = int(offset, 16)
             else:
                 offset = int(offset)
+
             base_reg = tmp[1][:len(tmp[1]) - 1].strip()
             target_address = offset + int(self.REG[base_reg], 16)
 
@@ -366,7 +368,7 @@ class Simulator:
             tmp = args[1].strip().split("(")
 
             offset = tmp[0].strip()
-            if offset[:2] == "0x":
+            if len(offset) >=2 and offset[:2] == "0x":
                 offset = int(offset, 16)
             else:
                 offset = int(offset)
