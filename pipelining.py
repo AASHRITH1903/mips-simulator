@@ -242,50 +242,66 @@ class Pipelined(Simulator):
         elif command == "ld":
             args = current_instruction.strip().split(",")
             to_reg = args[0].strip().split()[1]
-            tmp = args[1].strip().split("(")
 
-            offset = tmp[0].strip()
-            if len(offset) >= 2 and offset[:2] == "0x":
-                offset = int(offset, 16)
+
+            if args[1].find("(") != -1:
+                tmp = args[1].strip().split("(")
+
+                offset = tmp[0].strip()
+                if len(offset) >= 2 and offset[:2] == "0x":
+                    offset = int(offset, 16)
+                else:
+                    offset = int(offset)
+                base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+
+                is_stall = self.dep[base_reg]
+
+                if is_stall:
+                    self.stalls += 1
+                    self.stop_IF = True
+                    self.L2 = None
+                    return
+
+                self.dep[to_reg] = True
+                self.stop_IF = False
+                self.L2 = ["ld", to_reg, offset, int(self.REG[base_reg], 16)]
             else:
-                offset = int(offset)
-            base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+                target_address = self.variable_address[args[1].strip()]
+                self.dep[to_reg] = True
+                self.stop_IF = False
+                self.L2 = ["ld", to_reg, target_address]
 
-            is_stall = self.dep[base_reg]
-
-            if is_stall:
-                self.stalls += 1
-                self.stop_IF = True
-                self.L2 = None
-                return
-
-            self.dep[to_reg] = True
-            self.stop_IF = False
-            self.L2 = ["ld", to_reg, offset, int(self.REG[base_reg], 16)]
+            
 
         elif command == "st":
             args = current_instruction.strip().split(",")
             from_reg = args[0].strip().split()[1]
-            tmp = args[1].strip().split("(")
 
-            offset = tmp[0].strip()
-            if len(offset) >=2 and offset[:2] == "0x":
-                offset = int(offset, 16)
+            if args[1].find("(") != -1:
+                tmp = args[1].strip().split("(")
+
+                offset = tmp[0].strip()
+                if len(offset) >=2 and offset[:2] == "0x":
+                    offset = int(offset, 16)
+                else:
+                    offset = int(offset)
+                base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+
+                is_stall = (self.dep[base_reg] ) or (self.dep[from_reg] )
+
+                if is_stall:
+                    # stall at IDRF
+                    self.stalls += 1
+                    self.stop_IF = True
+                    self.L2 = None
+                    return
+
+                self.stop_IF = False
+                self.L2 = ["st", self.REG[from_reg], offset, int(self.REG[base_reg], 16)]
             else:
-                offset = int(offset)
-            base_reg = tmp[1][:len(tmp[1]) - 1].strip()
-
-            is_stall = (self.dep[base_reg] ) or (self.dep[from_reg] )
-
-            if is_stall:
-                # stall at IDRF
-                self.stalls += 1
-                self.stop_IF = True
-                self.L2 = None
-                return
-
-            self.stop_IF = False
-            self.L2 = ["st", self.REG[from_reg], offset, int(self.REG[base_reg], 16)]
+                target_address = self.variable_address[args[1].strip()]
+                self.L2 = ["st", self.REG[from_reg], target_address]
+                self.stop_IF = False
 
 
 
@@ -302,10 +318,16 @@ class Pipelined(Simulator):
             self.L3 = ["sub", self.L2[1], self.L2[2] - self.L2[3]]
 
         elif self.L2[0] == "ld":
-            self.L3 = ["ld", self.L2[1], self.L2[2] + self.L2[3]]
+            if len(self.L2) == 4:
+                self.L3 = ["ld", self.L2[1], self.L2[2] + self.L2[3]]
+            else
+                self.L3 = self.L2
 
         elif self.L2[0] == "st":
-            self.L3 = ["st", self.L2[1], self.L2[2] + self.L2[3]]
+            if len(self.L2) == 4:
+                self.L3 = ["st", self.L2[1], self.L2[2] + self.L2[3]]
+            else
+                self.L3 = self.L2
 
         elif self.L2[0] == "bne":
             self.L3 = self.L2
@@ -528,55 +550,66 @@ class Pipelined_DF(Simulator):
         elif command == "ld":
             args = current_instruction.strip().split(",")
             to_reg = args[0].strip().split()[1]
-            tmp = args[1].strip().split("(")
 
-            offset = tmp[0].strip()
-            if len(offset) >= 2 and offset[:2] == "0x":
-                offset = int(offset, 16)
-            else:
-                offset = int(offset)
+            if args[1].find("(") != -1:
+                tmp = args[1].strip().split("(")
 
-            base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+                offset = tmp[0].strip()
+                if len(offset) >= 2 and offset[:2] == "0x":
+                    offset = int(offset, 16)
+                else:
+                    offset = int(offset)
 
-            is_stall = self.dep[base_reg] and self.df[base_reg] == None
+                base_reg = tmp[1][:len(tmp[1]) - 1].strip()
 
-            if is_stall:
-                # stall at IDRF
-                self.stalls += 1
+                is_stall = self.dep[base_reg] and self.df[base_reg] == None
+
+                if is_stall:
+                    # stall at IDRF
+                    self.stalls += 1
+                    self.stop_IF = True
+                    self.L2 = None
+                    return
+
+                v = self.df[base_reg] if self.dep[base_reg] else int(self.REG[base_reg], 16)
+
                 self.stop_IF = True
-                self.L2 = None
-                return
-
-            v = self.df[base_reg] if self.dep[base_reg] else int(self.REG[base_reg], 16)
-
-            self.L2 = ["ld", to_reg, offset, v]
-            self.dep[to_reg] = True
+                self.L2 = ["ld", to_reg, offset, v]
+                self.dep[to_reg] = True
+            else:
 
         elif command == "st":
             args = current_instruction.strip().split(",")
             from_reg = args[0].strip().split()[1]
-            tmp = args[1].strip().split("(")
 
-            offset = tmp[0].strip()
-            if len(offset) >=2 and offset[:2] == "0x":
-                offset = int(offset, 16)
+            if args[1].find("(") != -1:
+                tmp = args[1].strip().split("(")
+
+                offset = tmp[0].strip()
+                if len(offset) >=2 and offset[:2] == "0x":
+                    offset = int(offset, 16)
+                else:
+                    offset = int(offset)
+                base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+
+                is_stall = (self.dep[base_reg] and self.df[base_reg] == None ) or (self.dep[from_reg] and self.df[from_reg] == None )
+
+                if is_stall:
+                    # stall at IDRF
+                    self.stalls += 1
+                    self.stop_IF = True
+                    self.L2 = None
+                    return
+
+                v1 = to_hex(self.df[from_reg]) if self.dep[from_reg]  else self.REG[from_reg]
+                v2 = self.df[base_reg] if self.dep[base_reg]  else int(self.REG[base_reg], 16)
+
+                self.L2 = ["st", v1, offset, v2]
+                self.stop_IF = False
             else:
-                offset = int(offset)
-            base_reg = tmp[1][:len(tmp[1]) - 1].strip()
-
-            is_stall = (self.dep[base_reg] and self.df[base_reg] == None ) or (self.dep[from_reg] and self.df[from_reg] == None )
-
-            if is_stall:
-                # stall at IDRF
-                self.stalls += 1
-                self.stop_IF = True
-                self.L2 = None
-                return
-
-            v1 = to_hex(self.df[from_reg]) if self.dep[from_reg]  else self.REG[from_reg]
-            v2 = self.df[base_reg] if self.dep[base_reg]  else int(self.REG[base_reg], 16)
-
-            self.L2 = ["st", v1, offset, v2]
+                target_address = self.variable_address[args[1].strip()]
+                self.L2 = ["st", self.REG[from_reg], target_address]
+                self.stop_IF = False
 
 
             
@@ -594,10 +627,16 @@ class Pipelined_DF(Simulator):
             self.df[self.L3[1]] = self.L3[2]
 
         elif self.L2[0] == "ld":
-            self.L3 = ["ld", self.L2[1], self.L2[2] + self.L2[3]]
+            if len(self.L2) == 4:
+                self.L3 = ["ld", self.L2[1], self.L2[2] + self.L2[3]]
+            else
+                self.L3 = self.L2
 
         elif self.L2[0] == "st":
-            self.L3 = ["st", self.L2[1], self.L2[2] + self.L2[3]]
+            if len(self.L2) == 4:
+                self.L3 = ["st", self.L2[1], self.L2[2] + self.L2[3]]
+            else
+                self.L3 = self.L2
 
         elif self.L2[0] == "bne":
             self.L3 = self.L2

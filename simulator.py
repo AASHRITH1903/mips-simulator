@@ -341,17 +341,23 @@ class Simulator:
         try:
             args = current_instruction.strip().split(",")
             to_reg = args[0].strip().split()[1]
-            tmp = args[1].strip().split("(")
 
-            offset = tmp[0].strip()
+            target_address = None
 
-            if len(offset) >= 2 and offset[:2] == "0x":
-                offset = int(offset, 16)
+            if args[1].find("(") != -1: 
+                tmp = args[1].strip().split("(")
+
+                offset = tmp[0].strip()
+
+                if len(offset) >= 2 and offset[:2] == "0x":
+                    offset = int(offset, 16)
+                else:
+                    offset = int(offset)
+
+                base_reg = tmp[1][:len(tmp[1]) - 1].strip()
+                target_address = offset + int(self.REG[base_reg], 16)
             else:
-                offset = int(offset)
-
-            base_reg = tmp[1][:len(tmp[1]) - 1].strip()
-            target_address = offset + int(self.REG[base_reg], 16)
+                target_address = self.variable_address(args[1].strip())
 
             self.REG[to_reg] = "0x" + self.MEM[target_address] + self.MEM[target_address + 1] + self.MEM[
                 target_address + 2] + self.MEM[target_address + 3]
