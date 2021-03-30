@@ -320,13 +320,13 @@ class Pipelined(Simulator):
         elif self.L2[0] == "ld":
             if len(self.L2) == 4:
                 self.L3 = ["ld", self.L2[1], self.L2[2] + self.L2[3]]
-            else
+            else:
                 self.L3 = self.L2
 
         elif self.L2[0] == "st":
             if len(self.L2) == 4:
                 self.L3 = ["st", self.L2[1], self.L2[2] + self.L2[3]]
-            else
+            else:
                 self.L3 = self.L2
 
         elif self.L2[0] == "bne":
@@ -577,6 +577,10 @@ class Pipelined_DF(Simulator):
                 self.L2 = ["ld", to_reg, offset, v]
                 self.dep[to_reg] = True
             else:
+                target_address = self.variable_address[args[1].strip()]
+                self.L2 = ["ld", to_reg, target_address]
+                self.stop_IF = False
+                self.dep[to_reg] = True
 
         elif command == "st":
             args = current_instruction.strip().split(",")
@@ -629,13 +633,13 @@ class Pipelined_DF(Simulator):
         elif self.L2[0] == "ld":
             if len(self.L2) == 4:
                 self.L3 = ["ld", self.L2[1], self.L2[2] + self.L2[3]]
-            else
+            else:
                 self.L3 = self.L2
 
         elif self.L2[0] == "st":
             if len(self.L2) == 4:
                 self.L3 = ["st", self.L2[1], self.L2[2] + self.L2[3]]
-            else
+            else:
                 self.L3 = self.L2
 
         elif self.L2[0] == "bne":
