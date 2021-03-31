@@ -88,6 +88,7 @@ class Pipelined(Simulator):
         self.total_stalls = 0
 
         self.total_clock_cycles = 0
+        self.stalled_instructions = []
 
     def load_program(self):
         self.text_box.delete("1.0", "end")
@@ -127,7 +128,6 @@ class Pipelined(Simulator):
         self.REG = default_REG.copy()
         self.MEM = ["."] * pow(2, 12)
 
-        self.REG["$t0"] = "0x00000001"
 
         self.variable_address = {}
 
@@ -143,6 +143,7 @@ class Pipelined(Simulator):
         self.total_stalls = 0
 
         self.total_clock_cycles = 0
+        self.stalled_instructions = []
 
     def next(self):
         self.single_clock_cycle()

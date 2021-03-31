@@ -13,8 +13,8 @@ default_REG = {
     "$a3": "0x00000000",
     "$t0": "0x00000000",
     "$t1": "0x00000000",
-    "$t2": "0x00000002",
-    "$t3": "0x00000003",
+    "$t2": "0x00000000",
+    "$t3": "0x00000000",
     "$t4": "0x00000000",
     "$t5": "0x00000000",
     "$t6": "0x00000000",
@@ -87,7 +87,7 @@ class Simulator:
         self.next_button = Button(self.root, text="next", command=self.next)
         self.auto_button = Button(self.root, text="auto", command=self.auto)
         self.text_box = scrolledtext.ScrolledText(self.root, width=500, height=200, wrap=WORD)
-        self.cib = scrolledtext.ScrolledText(self.root, width=200, height=2, wrap=WORD)
+        self.cib = scrolledtext.ScrolledText(self.root, width=200, height=10, wrap=WORD)
 
     def run(self):
 

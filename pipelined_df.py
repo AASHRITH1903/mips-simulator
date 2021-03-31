@@ -74,6 +74,7 @@ class Pipelined_DF(Simulator):
     def __init__(self):
         super().__init__()
         self.root.title("Pipelined MIPS Simulator with Data Forwarding")
+        self.cib.height = 5
 
         self.L1 = None
         self.L2 = None
@@ -88,6 +89,8 @@ class Pipelined_DF(Simulator):
         self.total_stalls = 0
 
         self.total_clock_cycles = 0
+
+        self.stalled_instructions = []
 
     def load_program(self):
         self.text_box.delete("1.0", "end")
@@ -126,7 +129,6 @@ class Pipelined_DF(Simulator):
         self.main = -1
         self.REG = default_REG.copy()
         self.MEM = ["."] * pow(2, 12)
-        self.REG["$t0"] = "0x00000001"
 
 
         self.variable_address = {}
@@ -145,6 +147,7 @@ class Pipelined_DF(Simulator):
         self.total_stalls = 0
 
         self.total_clock_cycles = 0
+        self.stalled_instructions = []
 
 
     def next(self):
@@ -162,6 +165,9 @@ class Pipelined_DF(Simulator):
 
         if not (self.L1 or self.L2 or self.L3 or self.L4):
             self.next_button["state"] = "disabled"
+            self.cib.insert(END, "\nstalled instructions : \n")
+            for i in self.stalled_instructions:
+                self.cib.insert(END, i+"\n" )
             return
     
     def auto(self):
@@ -217,6 +223,7 @@ class Pipelined_DF(Simulator):
 
             if is_stall:
                 # stall at IDRF
+                self.stalled_instructions.append(current_instruction)
                 self.stalls += 1
                 self.stop_IF = True
                 self.L2 = None
@@ -225,7 +232,7 @@ class Pipelined_DF(Simulator):
             v1 = self.df[reg1] if self.dep[reg1]  else int(self.REG[reg1], 16)
             v2 = self.df[reg2] if self.dep[reg2]  else int(self.REG[reg2], 16)
 
-            self.total_stalls += self.stalls-1 if self.stalls > 0 else 0
+            self.total_stalls += self.stalls
             self.stalls = 0
 
             self.dep[target] = True
@@ -239,21 +246,27 @@ class Pipelined_DF(Simulator):
             reg2 = args[1].strip()
             target_label = args[2].strip()
 
-            # using : reg1 , reg2
-            # since df can't be done from EXE to IDRF , stall comes
-            is_stall = self.L2 and (self.L2[1] == reg1 or self.L2[1] == reg2)
 
-            if is_stall:
-                self.stalls += 1
-                self.stop_IF = True
-                self.L2 = None
-                return
+            if self.L3 and ( (self.dep[reg1] and self.L3[1] == reg1) or (self.dep[reg2] and self.L3[1] == reg2) ):
+                if self.L3[0] == "add" or self.L3[0] == "sub":
+                    print("2")
+                    self.stop_IF = True
+                    self.L2 = None
+                    return
+                elif self.L3[0] == "ld":
+                    self.total_stalls += 1
+                    self.total_clock_cycles += 1
+                    self.stalled_instructions.append(current_instruction)
+                    self.stop_IF = True
+                    self.L2 = None
+                    return
 
-            self.total_stalls += self.stalls-1 if self.stalls > 0 else 0
-            self.stalls = 0
+
+            v1 = self.df[reg1] if self.dep[reg1] else self.REG[reg1]
+            v2 = self.df[reg2] if self.dep[reg2] else self.REG[reg2]
 
             self.stop_IF = False
-            if self.REG[reg1] != self.REG[reg2]:
+            if v1 != v2:
                 # branch taken
                 self.PC = self.labels[target_label] + 1
                 self.branch_taken = True
@@ -292,11 +305,12 @@ class Pipelined_DF(Simulator):
                 if is_stall:
                     # stall at IDRF
                     self.stalls += 1
+                    self.stalled_instructions.append(current_instruction)
                     self.stop_IF = True
                     self.L2 = None
                     return
 
-                self.total_stalls += self.stalls-1 if self.stalls > 0 else 0
+                self.total_stalls += self.stalls
                 self.stalls = 0
 
                 v = self.df[base_reg] if self.dep[base_reg] else int(self.REG[base_reg], 16)
@@ -326,37 +340,38 @@ class Pipelined_DF(Simulator):
                     offset = int(offset)
                 base_reg = tmp[1][:len(tmp[1]) - 1].strip()
 
-                is_stall = (self.dep[base_reg] and self.df[base_reg] == None ) or (self.dep[from_reg] and self.df[from_reg] == None )
+                is_stall = (self.dep[base_reg] and self.df[base_reg] == None ) # or (self.dep[from_reg] and self.df[from_reg] == None )
 
                 if is_stall:
                     # stall at IDRF
                     self.stalls += 1
+                    self.stalled_instructions.append(current_instruction)
                     self.stop_IF = True
                     self.L2 = None
                     return
 
-                self.total_stalls += self.stalls-1 if self.stalls > 0 else 0
+                self.total_stalls += self.stalls
                 self.stalls = 0
 
-                v = to_hex(self.df[from_reg]) if self.dep[from_reg]  else self.REG[from_reg]
                 b = self.df[base_reg] if self.dep[base_reg]  else int(self.REG[base_reg], 16)
 
-                self.L2 = ["st", v, offset, b]
+                self.L2 = ["st", from_reg, offset, b]
                 self.stop_IF = False
             else:
                 # using : from_reg
-                if self.dep[from_reg]:
-                    # stall at IDRF
-                    self.stalls += 1
-                    self.stop_IF = True
-                    self.L2 = None
-                    return
+                # if self.dep[from_reg] and :
+                    # # stall at IDRF
+                    # self.stalls += 1
+                    # self.stop_IF = True
+                    # self.L2 = None
+                    # return
 
-                self.total_stalls += self.stalls-1 if self.stalls > 0 else 0
+                self.total_stalls += self.stalls
+                self.stalled_instructions.append(current_instruction)
                 self.stalls = 0
 
                 target_address = self.variable_address[args[1].strip()]
-                self.L2 = ["st", self.REG[from_reg], target_address]
+                self.L2 = ["st", from_reg, target_address]
                 self.stop_IF = False
 
 
@@ -381,10 +396,11 @@ class Pipelined_DF(Simulator):
                 self.L3 = self.L2
 
         elif self.L2[0] == "st":
+            from_reg = self.L2[1]
             if len(self.L2) == 4:
-                self.L3 = ["st", self.L2[1], self.L2[2] + self.L2[3]]
+                self.L3 = ["st", to_hex(self.df[from_reg]) if self.dep[from_reg] else self.REG[from_reg], self.L2[2] + self.L2[3]]
             else:
-                self.L3 = self.L2
+                self.L3 = ["st", to_hex(self.df[from_reg]) if self.dep[from_reg] else self.REG[from_reg], self.L2[2]]
 
         elif self.L2[0] == "bne":
             self.L3 = self.L2
