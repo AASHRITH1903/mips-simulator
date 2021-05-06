@@ -72,7 +72,10 @@ default_df = {
 
 class Pipelined(Simulator):
     def __init__(self):
-        super().__init__()
+
+        self.cc = Cache_Controller(4,64,4,64,4,self)
+        super().__init__(self.cc)
+
         self.root.title("Pipelined MIPS Simulator without Data Forwarding")
 
         self.L1 = None
@@ -89,6 +92,7 @@ class Pipelined(Simulator):
 
         self.total_clock_cycles = 0
         self.stalled_instructions = []
+
 
     def load_program(self):
         self.text_box.delete("1.0", "end")
@@ -120,13 +124,15 @@ class Pipelined(Simulator):
 
         return
 
+
     def reset(self):
         self.instruction_set = []
         self.labels = {}
         self.PC = 0
         self.main = -1
         self.REG = default_REG.copy()
-        self.MEM = ["."] * pow(2, 12)
+        # self.MEM = ["."] * pow(2, 12)
+        self.cc.clear()
 
 
         self.variable_address = {}
@@ -391,14 +397,20 @@ class Pipelined(Simulator):
 
         if self.L3[0] == "ld":
             address = self.L3[2]
-            val = "0x" + self.MEM[address] + self.MEM[address+1] + self.MEM[address+2] + self.MEM[address+3]
+            # val = "0x" + self.MEM[address] + self.MEM[address+1] + self.MEM[address+2] + self.MEM[address+3]
+            val = "0x" + self.cc.read(to_hex(address)) + self.cc.read(to_hex(address+1)) + self.cc.read(to_hex(address+2)) + self.cc.read(to_hex(address+3))
             self.L4 = [self.L3[1], val ]
         
         elif self.L3[0] == "st":
-            self.MEM[self.L3[2]] = self.L3[1][2:4]
-            self.MEM[self.L3[2] + 1] = self.L3[1][4:6]
-            self.MEM[self.L3[2] + 2] = self.L3[1][6:8]
-            self.MEM[self.L3[2] + 3] = self.L3[1][8:10]
+            # self.MEM[self.L3[2]] = self.L3[1][2:4]
+            # self.MEM[self.L3[2] + 1] = self.L3[1][4:6]
+            # self.MEM[self.L3[2] + 2] = self.L3[1][6:8]
+            # self.MEM[self.L3[2] + 3] = self.L3[1][8:10]
+
+            self.cc.write(to_hex(self.L3[2]), self.L3[1][2:4])
+            self.cc.write(to_hex(self.L3[2] + 1), self.L3[1][4:6])
+            self.cc.write(to_hex(self.L3[2] + 2) , self.L3[1][6:8])
+            self.cc.write(to_hex(self.L3[2] + 3) , self.L3[1][8:10])
 
             self.L4 = ["st"]
 

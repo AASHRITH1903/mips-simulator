@@ -1,6 +1,7 @@
 from tkinter import *
 from tkinter.filedialog import askopenfile
 from tkinter import scrolledtext
+from cache import *
 
 default_REG = {
     "$zero": "0x00000000",
@@ -68,7 +69,7 @@ def get_opcode(current):
     return current.split(" ", 1)[0]
 
 class Simulator:
-    def __init__(self):
+    def __init__(self,c):
         self.filename = ""
         self.instruction_set = []
         self.labels = {}
@@ -77,6 +78,7 @@ class Simulator:
         self.REG = default_REG.copy()
         self.MEM = ["."] * pow(2, 12)
         self.variable_address = {}
+        self.cc = c
 
 
         # GUI
@@ -140,6 +142,7 @@ class Simulator:
         self.main = -1
         self.REG = default_REG.copy()
         self.MEM = ["."] * pow(2, 12)
+        self.cc.clear()
         self.variable_address = {}
 
     def parse(self):
@@ -180,7 +183,7 @@ class Simulator:
             if variable_type == ".asciiz":
                 value = tmp[1].split("\"")[1]
                 for c in value:
-                    self.MEM[mi] = c
+                    self.cc.MEM[mi] = c
                     mi += 1
 
             elif variable_type == ".word":
@@ -197,16 +200,23 @@ class Simulator:
                     else:
                         value = "0x" + "0" * (8 - len(value)) + value
 
-                    self.MEM[mi] = value[2:4]
-                    self.MEM[mi + 1] = value[4:6]
-                    self.MEM[mi + 2] = value[6:8]
-                    self.MEM[mi + 3] = value[8:10]
+                    self.cc.MEM[mi] = value[2:4]
+                    self.cc.MEM[mi + 1] = value[4:6]
+                    self.cc.MEM[mi + 2] = value[6:8]
+                    self.cc.MEM[mi + 3] = value[8:10]
+
+                    # self.cc.write(to_hex(mi), value[2:4])
+                    # self.cc.write(to_hex(mi + 1) , value[4:6])
+                    # self.cc.write(to_hex(mi + 2) , value[6:8])
+                    # self.cc.write(to_hex(mi + 3) , value[8:10])
+
                     mi += 4
 
             elif variable_type == ".space":
                 value = int(tmp[1].split()[1])
                 for _ in range(value):
-                    self.MEM[mi] = "_"
+                    self.cc.MEM[mi] = "_"
+                    # self.cc.write(to_hex(mi), "_")
                     mi += 1
 
         return
@@ -247,7 +257,7 @@ class Simulator:
         for key in self.REG:
             self.text_box.insert(END, key + " : " + self.REG[key] + "\n")
         self.text_box.insert(END, "\nMEMORY : \n\n")
-        for byte in self.MEM:
+        for byte in self.cc.MEM:
             self.text_box.insert(END, byte + " ")
 
 
