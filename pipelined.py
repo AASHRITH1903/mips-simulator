@@ -35,41 +35,6 @@ default_dep = {
     "$ra": False,
 }
 
-default_df = {
-    "$zero": None,
-    "$at": None,
-    "$v0": None,
-    "$v1": None,
-    "$a0": None,
-    "$a1": None,
-    "$a2": None,
-    "$a3": None,
-    "$t0": None,
-    "$t1": None,
-    "$t2": None,
-    "$t3": None,
-    "$t4": None,
-    "$t5": None,
-    "$t6": None,
-    "$t7": None,
-    "$t8": None,
-    "$t9": None,
-    "$s0": None,
-    "$s1": None,
-    "$s2": None,
-    "$s3": None,
-    "$s4": None,
-    "$s5": None,
-    "$s6": None,
-    "$s7": None,
-    "$k0": None,
-    "$k1": None,
-    "$gp": None,
-    "$sp": None,
-    "$fp": None,
-    "$ra": None,
-}
-
 class Pipelined(Simulator):
     def __init__(self):
 
@@ -88,9 +53,10 @@ class Pipelined(Simulator):
         self.branch_taken = False
         self.stop_IF = False
         self.to_be_updated = None
-        self.total_stalls = 0
 
+        self.total_stalls = 0
         self.total_clock_cycles = 0
+        self.total_instructions = 0
         self.stalled_instructions = []
 
 
@@ -126,17 +92,7 @@ class Pipelined(Simulator):
 
 
     def reset(self):
-        self.instruction_set = []
-        self.labels = {}
-        self.PC = 0
-        self.main = -1
-        self.REG = default_REG.copy()
-        # self.MEM = ["."] * pow(2, 12)
-        self.cc.clear()
-
-
-        self.variable_address = {}
-
+        super().reset()
         self.L1 = None
         self.L2 = None
         self.L3 = None
@@ -146,10 +102,12 @@ class Pipelined(Simulator):
         self.stalls = 0
         self.branch_taken = False
         self.stop_IF = False
-        self.total_stalls = 0
 
+        self.total_stalls = 0
         self.total_clock_cycles = 0
+        self.total_instructions = 0
         self.stalled_instructions = []
+
 
     def next(self):
         self.single_clock_cycle()
@@ -159,12 +117,18 @@ class Pipelined(Simulator):
         self.cib.delete("1.0", "end")
 
         self.display_reg_mem()
-        self.cib.insert(END, f"stalls : {self.total_stalls}\n")
-        print(self.L1, self.L2, self.L3, self.L4)
+
         self.cib.insert(END, f"total clock cycles : {self.total_clock_cycles}\n")
+        self.cib.insert(END, f"stalls : {self.total_stalls}\n")
+        self.cib.insert(END, f"IPC : {self.total_instructions / self.total_clock_cycles}")
+        
+        print(self.L1, self.L2, self.L3, self.L4)
 
         if not (self.L1 or self.L2 or self.L3 or self.L4):
             self.next_button["state"] = "disabled"
+            self.cib.insert(END, "\nstalled instructions : \n")
+            for i in self.stalled_instructions:
+                self.cib.insert(END, i+"\n" )
             return
 
     def auto(self):
@@ -199,6 +163,7 @@ class Pipelined(Simulator):
 
             if self.PC < len(self.instruction_set):
                 self.L1 = self.instruction_set[self.PC]
+                self.total_instructions += 1
                 self.PC += 1
             else:
                 self.L1 = None
@@ -223,6 +188,7 @@ class Pipelined(Simulator):
             if is_stall:
                 # stall at IDRF
                 self.stalls += 1
+                self.stalled_instructions.append(current_instruction)
                 self.stop_IF = True
                 self.L2 = None
                 return
@@ -246,6 +212,7 @@ class Pipelined(Simulator):
 
             if is_stall:
                 self.stalls += 1
+                self.stalled_instructions.append(current_instruction)
                 self.stop_IF = True
                 self.L2 = None
                 return
@@ -293,6 +260,7 @@ class Pipelined(Simulator):
                 if is_stall:
                     # stall at IDRF
                     self.stalls += 1
+                    self.stalled_instructions.append(current_instruction)
                     self.stop_IF = True
                     self.L2 = None
                     return
@@ -333,6 +301,7 @@ class Pipelined(Simulator):
                 if is_stall:
                     # stall at IDRF
                     self.stalls += 1
+                    self.stalled_instructions.append(current_instruction)
                     self.stop_IF = True
                     self.L2 = None
                     return
@@ -347,6 +316,7 @@ class Pipelined(Simulator):
                 if self.dep[from_reg]:
                     # stall at IDRF
                     self.stalls += 1
+                    self.stalled_instructions.append(current_instruction)
                     self.stop_IF = True
                     self.L2 = None
                     return
@@ -400,6 +370,8 @@ class Pipelined(Simulator):
             # val = "0x" + self.MEM[address] + self.MEM[address+1] + self.MEM[address+2] + self.MEM[address+3]
             val = "0x" + self.cc.read(to_hex(address)) + self.cc.read(to_hex(address+1)) + self.cc.read(to_hex(address+2)) + self.cc.read(to_hex(address+3))
             self.L4 = [self.L3[1], val ]
+            self.total_clock_cycles -= 1
+            self.total_stalls -= 1
         
         elif self.L3[0] == "st":
             # self.MEM[self.L3[2]] = self.L3[1][2:4]
@@ -413,6 +385,8 @@ class Pipelined(Simulator):
             self.cc.write(to_hex(self.L3[2] + 3) , self.L3[1][8:10])
 
             self.L4 = ["st"]
+            self.total_clock_cycles -= 1
+            self.total_stalls -= 1
 
         elif self.L3[0] == "add" or self.L3[0] == "sub":
             self.L4 = self.L3[1:]

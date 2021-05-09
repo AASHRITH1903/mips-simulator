@@ -1,39 +1,4 @@
-from simulator import *
-
-default_dep = {
-    "$zero": False,
-    "$at": False,
-    "$v0": False,
-    "$v1": False,
-    "$a0": False,
-    "$a1": False,
-    "$a2": False,
-    "$a3": False,
-    "$t0": False,
-    "$t1": False,
-    "$t2": False,
-    "$t3": False,
-    "$t4": False,
-    "$t5": False,
-    "$t6": False,
-    "$t7": False,
-    "$t8": False,
-    "$t9": False,
-    "$s0": False,
-    "$s1": False,
-    "$s2": False,
-    "$s3": False,
-    "$s4": False,
-    "$s5": False,
-    "$s6": False,
-    "$s7": False,
-    "$k0": False,
-    "$k1": False,
-    "$gp": False,
-    "$sp": False,
-    "$fp": False,
-    "$ra": False,
-}
+from pipelined import *
 
 default_df = {
     "$zero": None,
@@ -70,115 +35,19 @@ default_df = {
     "$ra": None,
 }
 
-class Pipelined_DF(Simulator):
+class Pipelined_DF(Pipelined):
     def __init__(self):
 
-        self.cc = Cache_Controller(4,64,4,64,4,self)
-        super().__init__(self.cc)
+        super().__init__()
 
         self.root.title("Pipelined MIPS Simulator with Data Forwarding")
-        self.cib.height = 5
-
-        self.L1 = None
-        self.L2 = None
-        self.L3 = None
-        self.L4 = None
-
-        self.dep = default_dep.copy()
         self.df = default_df.copy()
-        self.stalls = 0
-        self.branch_taken = False
-        self.stop_IF = False
-        self.total_stalls = 0
 
-        self.total_clock_cycles = 0
-
-        self.stalled_instructions = []
-        
-
-    def load_program(self):
-        self.text_box.delete("1.0", "end")
-        self.cib.delete("1.0", "end")
-        self.reset()
-
-        if not self.filename.endswith((".asm", ".s")):
-            self.text_box.insert(END, "Invalid file.\n")
-            self.next_button["state"] = "disabled"
-            return
-
-        self.parse()
-
-        if self.main == -1:
-            self.text_box.insert(END, "Main function not found . \nExecution aborted .")
-            self.next_button["state"] = "disabled"
-            return
-
-        self.next_button["state"] = "active"
-        self.PC = self.main + 1
-
-        self.display_reg_mem()
-        self.cib.insert(END, f"stalls : {self.stalls}\n")
-        self.cib.insert(END, f"total clock cycles : {self.total_clock_cycles}\n")
-
-        print(self.instruction_set)
-        print(self.labels)
-        print(self.variable_address)
-
-        return
 
     def reset(self):
-        self.instruction_set = []
-        self.labels = {}
-        self.PC = 0
-        self.main = -1
-        self.REG = default_REG.copy()
-        # self.MEM = ["."] * pow(2, 12)
-        self.cc.clear()
-
-
-        self.variable_address = {}
-
-        self.L1 = None
-        self.L2 = None
-        self.L3 = None
-        self.L4 = None
-
-
-        self.dep = default_dep.copy()
+        super().reset()
         self.df = default_df.copy()
-        self.stalls = 0
-        self.branch_taken = False
-        self.stop_IF = False
-        self.total_stalls = 0
 
-        self.total_clock_cycles = 0
-        self.stalled_instructions = []
-
-
-    def next(self):
-        self.single_clock_cycle()
-        self.total_clock_cycles += 1
-
-        self.text_box.delete("1.0", "end")
-        self.cib.delete("1.0", "end")
-
-        self.display_reg_mem()
-        self.cib.insert(END, f"stalls : {self.total_stalls}\n")
-        print(self.L1, self.L2, self.L3, self.L4)
-        self.cib.insert(END, f"total clock cycles : {self.total_clock_cycles}\n")
-
-
-        if not (self.L1 or self.L2 or self.L3 or self.L4):
-            self.next_button["state"] = "disabled"
-            self.cib.insert(END, "\nstalled instructions : \n")
-            for i in self.stalled_instructions:
-                self.cib.insert(END, i+"\n" )
-            return
-    
-    def auto(self):
-        self.next()
-        while self.L1 or self.L2 or self.L3 or self.L4:
-            self.next()
     
     def single_clock_cycle(self):
         self.WB()
@@ -188,27 +57,6 @@ class Pipelined_DF(Simulator):
         if not self.stop_IF:
             self.IF()
 
-
-    def IF(self):        
-        if self.branch_taken == True:
-            # similar to stall at IF
-            # self.stalls += 1
-            self.L1 = None
-            self.branch_taken = False
-            return
-
-        if self.PC < len(self.instruction_set):
-
-            if self.is_label(self.instruction_set[self.PC]):
-                self.PC += 1
-
-            if self.PC < len(self.instruction_set):
-                self.L1 = self.instruction_set[self.PC]
-                self.PC += 1
-            else:
-                self.L1 = None
-        else:
-            self.L1 = None
 
     def IDRF(self):
 
@@ -420,16 +268,13 @@ class Pipelined_DF(Simulator):
 
         if self.L3[0] == "ld":
             address = self.L3[2]
-            # val = "0x" + self.MEM[address] + self.MEM[address+1] + self.MEM[address+2] + self.MEM[address+3]
             val = "0x" + self.cc.read(to_hex(address)) + self.cc.read(to_hex(address+1)) + self.cc.read(to_hex(address+2)) + self.cc.read(to_hex(address+3))
             self.L4 = [self.L3[1], val ]
             self.df[self.L3[1]] = int(val, 16)
+            self.total_clock_cycles -= 1
+            self.total_stalls -= 1
         
         elif self.L3[0] == "st":
-            # self.MEM[self.L3[2]] = self.L3[1][2:4]
-            # self.MEM[self.L3[2] + 1] = self.L3[1][4:6]
-            # self.MEM[self.L3[2] + 2] = self.L3[1][6:8]
-            # self.MEM[self.L3[2] + 3] = self.L3[1][8:10]
 
             self.cc.write(to_hex(self.L3[2]), self.L3[1][2:4])
             self.cc.write(to_hex(self.L3[2] + 1), self.L3[1][4:6])
@@ -437,6 +282,8 @@ class Pipelined_DF(Simulator):
             self.cc.write(to_hex(self.L3[2] + 3) , self.L3[1][8:10])
 
             self.L4 = ["st"]
+            self.total_clock_cycles -= 1
+            self.total_stalls -= 1
 
         elif self.L3[0] == "add" or self.L3[0] == "sub":
             self.L4 = self.L3[1:]
