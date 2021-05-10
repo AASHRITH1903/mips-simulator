@@ -56,6 +56,7 @@ The GUI looks as below after the execution of a test case:
 
 
  ********** SCREENSHOT **********
+
  
 We had fun doing this proj... (not much though 😄)
 

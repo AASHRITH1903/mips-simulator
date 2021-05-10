@@ -183,6 +183,8 @@ class Cache_Controller:
 
         res = self.L1.read(rem)
 
+        self.processor.cache_accesses += 1
+
         self.processor.total_clock_cycles += self.L1l
         self.processor.total_stalls += self.L1l
 
@@ -201,6 +203,7 @@ class Cache_Controller:
 
         self.processor.total_clock_cycles += self.MEMl
         self.processor.total_stalls += self.MEMl
+        self.processor.cache_misses += 1
 
         new_blk = Block(rem, self.B)
         addr = bin_to_dec(rem + '0'*self.offs)
@@ -231,6 +234,8 @@ class Cache_Controller:
         rem = bin_add[ : 32-self.offs]
         offset = bin_to_dec( bin_add[32-self.offs : ])
 
+        self.processor.cache_accesses += 1
+
         ok = self.L1.write(rem,offset,d)
         # updates the value and priority
         if not ok:
@@ -239,6 +244,8 @@ class Cache_Controller:
             if kob != None:
                 self.add_to_L1(kob)
             else:
+
+                self.processor.cache_misses += 1
 
                 new_blk = Block(rem, self.B)
                 addr = bin_to_dec(rem + '0'*self.offs)

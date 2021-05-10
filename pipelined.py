@@ -58,6 +58,8 @@ class Pipelined(Simulator):
         self.total_clock_cycles = 0
         self.total_instructions = 0
         self.stalled_instructions = []
+        self.cache_misses = 0
+        self.cache_accesses = 0
 
 
     def load_program(self):
@@ -107,6 +109,8 @@ class Pipelined(Simulator):
         self.total_clock_cycles = 0
         self.total_instructions = 0
         self.stalled_instructions = []
+        self.cache_misses = 0
+        self.cache_accesses = 0
 
 
     def next(self):
@@ -120,7 +124,8 @@ class Pipelined(Simulator):
 
         self.cib.insert(END, f"total clock cycles : {self.total_clock_cycles}\n")
         self.cib.insert(END, f"stalls : {self.total_stalls}\n")
-        self.cib.insert(END, f"IPC : {self.total_instructions / self.total_clock_cycles}")
+        self.cib.insert(END, f"IPC : {self.total_instructions / self.total_clock_cycles}\n")
+        self.cib.insert(END, f"Cache miss rate : {self.cache_misses / max(self.cache_accesses, 1)}\n" )
         
         print(self.L1, self.L2, self.L3, self.L4)
 
