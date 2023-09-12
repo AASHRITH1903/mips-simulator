@@ -58,8 +58,4 @@ The GUI looks as below after the execution of a test case:
  
  ![Screenshot from 2021-05-10 21-03-43](https://user-images.githubusercontent.com/63637200/117685372-84d99580-b1d3-11eb-88d7-baeb86d38c12.png)
 
-
- 
-We had fun doing this proj... (not much though 😄)
-
 Contributors: Aashrith(CS19B025) and Nitesh(CS19B028)
